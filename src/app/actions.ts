@@ -1,8 +1,10 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import type { Profile } from "@/lib/types";
 
 export type ActionResult = { ok: boolean; error?: string };
+export type ProfileResult = { ok: boolean; profile?: Profile; error?: string };
 
 // Sorteia um país e abre a rodada de 7 minutos.
 export async function drawCountry(): Promise<ActionResult> {
@@ -104,4 +106,39 @@ export async function submitReview(
   });
   if (error) return { ok: false, error: error.message };
   return { ok: true };
+}
+
+// Busca (ou cria) o perfil do usuário logado com o código de convite.
+export async function getOrCreateProfile(): Promise<ProfileResult> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("get_or_create_profile");
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, profile: data as Profile };
+}
+
+// Adiciona amigo pelo código de convite. Retorna o perfil do amigo.
+export async function addFriendByCode(
+  code: string,
+): Promise<{ ok: boolean; friend?: Profile; error?: string }> {
+  const clean = code.trim().toUpperCase();
+  if (!clean) return { ok: false, error: "Digite o código." };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("add_friend_by_code", {
+    p_code: clean,
+  });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, friend: data as Profile };
+}
+
+// Toggle de curtida em um prato do feed social.
+export async function toggleLike(
+  matchId: string,
+): Promise<{ ok: boolean; liked?: boolean; error?: string }> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("toggle_like", {
+    p_match_id: matchId,
+  });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, liked: data as boolean };
 }
