@@ -2,136 +2,164 @@
 
 import { useActionState, useState } from "react";
 import { login, signup, type AuthState } from "./actions";
+import { TEAMS } from "@/lib/teams";
 
 const initial: AuthState = {};
+
+// Two copies of the flag row for infinite marquee
+const FLAGS = TEAMS.map((t) => t.f).join(" ");
+const MARQUEE_ROW = FLAGS + " " + FLAGS;
 
 export default function LoginPage() {
   const [mode, setMode] = useState<"login" | "signup">("login");
   const action = mode === "login" ? login : signup;
   const [state, formAction, pending] = useActionState(action, initial);
 
-  return (
-    <main className="relative flex min-h-dvh items-center justify-center overflow-hidden px-5 py-10">
-      {/* prato/bola flutuante decorativo */}
-      <div className="pointer-events-none absolute -top-10 -left-10 text-[9rem] opacity-20 blur-[1px] [animation:var(--animate-float)]">
-        🍲
-      </div>
-      <div className="pointer-events-none absolute -right-8 bottom-6 text-[7rem] opacity-20 [animation:var(--animate-float)] [animation-delay:-3s]">
-        ⚽
-      </div>
+  function switchMode(e: React.MouseEvent) {
+    e.preventDefault();
+    setMode((m) => (m === "login" ? "signup" : "login"));
+  }
 
-      <div className="relative z-10 w-full max-w-sm [animation:var(--animate-rise)]">
-        {/* Cabeçalho da marca */}
-        <div className="mb-8 text-center">
-          <span className="inline-flex items-center gap-2 rounded-full border border-line bg-card/70 px-3 py-1 text-[0.7rem] font-semibold tracking-[0.18em] text-saffron uppercase">
-            Copa 2026
-          </span>
-          <h1 className="mt-4 font-display text-5xl leading-[0.95] font-black tracking-tight">
-            <span className="text-gradient">Comidas</span>
-            <br />
-            <span className="text-cream">da Copa</span>
-          </h1>
-          <p className="mx-auto mt-3 max-w-[16rem] text-sm text-muted">
-            Sorteie uma seleção, invente o prato típico e cozinhe de verdade.
-          </p>
+  return (
+    <>
+      {/* Topbar */}
+      <header className="topbar">
+        <div className="brand">
+          <span className="ball">⚽</span> COMIDAS <b>DA COPA</b>
+        </div>
+        <div className="right">
+          <ThemeToggle />
+        </div>
+      </header>
+
+      <main className="stage center">
+        {/* Marquee de bandeiras */}
+        <div className="flags-marquee" style={{ width: "100%" }}>
+          <div>{MARQUEE_ROW}</div>
         </div>
 
-        {/* Cartão */}
-        <div className="glass rounded-[1.75rem] p-6 shadow-[var(--shadow-warm)]">
-          <div className="mb-5 grid grid-cols-2 gap-1 rounded-2xl bg-coal/60 p-1">
-            <button
-              type="button"
-              onClick={() => setMode("login")}
-              className={`rounded-xl py-2.5 text-sm font-bold transition ${
-                mode === "login"
-                  ? "bg-saffron text-ink shadow"
-                  : "text-muted hover:text-cream"
-              }`}
-            >
-              Entrar
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode("signup")}
-              className={`rounded-xl py-2.5 text-sm font-bold transition ${
-                mode === "signup"
-                  ? "bg-saffron text-ink shadow"
-                  : "text-muted hover:text-cream"
-              }`}
-            >
-              Criar conta
-            </button>
-          </div>
+        <h1 className="neon floaty" style={{ marginTop: 8 }}>
+          COMIDAS DA COPA
+        </h1>
+        <p className="lead">Sorteie · Cozinhe · Avalie 🏆</p>
 
-          <form action={formAction} className="space-y-3">
+        {/* Card de auth */}
+        <div className="card bolts accent" style={{ width: "100%", maxWidth: 420, marginTop: 8 }}>
+          <div className="card-title">
+            {mode === "login" ? "INSERT COIN" : "NEW PLAYER"}
+          </div>
+          <p className="help" style={{ marginBottom: 14 }}>
+            {mode === "login"
+              ? "Faça login pra entrar na sala"
+              : "Crie seu jogador pra começar"}
+          </p>
+
+          <form action={formAction} className="col" style={{ textAlign: "left" }}>
             {mode === "signup" && (
-              <Field
-                name="name"
-                type="text"
-                placeholder="Seu nome"
-                autoComplete="name"
-                icon="🙂"
-              />
+              <div className="field">
+                <label className="label">NOME DE JOGADOR</label>
+                <input
+                  className="input"
+                  name="name"
+                  type="text"
+                  placeholder="Chef..."
+                  maxLength={14}
+                  autoComplete="name"
+                />
+              </div>
             )}
-            <Field
-              name="email"
-              type="email"
-              placeholder="Email"
-              autoComplete="email"
-              icon="✉️"
-            />
-            <Field
-              name="password"
-              type="password"
-              placeholder="Senha"
-              autoComplete={mode === "login" ? "current-password" : "new-password"}
-              icon="🔒"
-            />
+
+            <div className="field">
+              <label className="label">E-MAIL</label>
+              <input
+                className="input"
+                name="email"
+                type="email"
+                placeholder="voce@email.com"
+                autoComplete="email"
+                required
+              />
+            </div>
+
+            <div className="field">
+              <label className="label">SENHA</label>
+              <input
+                className="input"
+                name="password"
+                type="password"
+                placeholder="••••••••"
+                autoComplete={mode === "login" ? "current-password" : "new-password"}
+                required
+              />
+            </div>
 
             {state.error && (
-              <p className="rounded-xl border border-paprika/40 bg-paprika/15 px-3 py-2 text-sm text-paprika">
-                {state.error}
+              <p
+                className="tiny"
+                style={{ color: "var(--pink)", marginTop: 4 }}
+              >
+                ⚠ {state.error}
               </p>
             )}
             {state.message && (
-              <p className="rounded-xl border border-pitch/40 bg-pitch/15 px-3 py-2 text-sm text-pitch">
-                {state.message}
+              <p
+                className="tiny"
+                style={{ color: "var(--green)", marginTop: 4 }}
+              >
+                ✓ {state.message}
               </p>
             )}
 
             <button
               type="submit"
               disabled={pending}
-              className="mt-1 w-full rounded-2xl bg-gradient-to-r from-saffron-bright to-paprika py-3.5 text-base font-black text-ink shadow-[var(--shadow-glow)] transition active:scale-[0.98] disabled:opacity-60"
+              className="btn block lg mt8"
             >
               {pending
-                ? "Aguarde…"
+                ? "AGUARDE…"
                 : mode === "login"
-                  ? "Entrar e jogar"
-                  : "Criar minha conta"}
+                  ? "ENTRAR ▸"
+                  : "CRIAR CONTA ▸"}
             </button>
           </form>
+
+          <div className="divider mt20">OU</div>
+          <a
+            href="#"
+            onClick={switchMode}
+            className="tiny"
+            style={{
+              display: "block",
+              textAlign: "center",
+              color: "var(--accent-2)",
+              marginTop: 12,
+            }}
+          >
+            {mode === "login"
+              ? "Não tem conta? CADASTRE-SE"
+              : "Já tem conta? ENTRAR"}
+          </a>
         </div>
 
-        <p className="mt-6 text-center text-xs text-faint">
-          Feito para jogar em dupla 🍴⚽
+        <p className="tiny" style={{ color: "var(--muted)", marginTop: 18 }}>
+          🔒 Autenticação segura
         </p>
-      </div>
-    </main>
+      </main>
+    </>
   );
 }
 
-function Field({
-  icon,
-  ...props
-}: { icon: string } & React.InputHTMLAttributes<HTMLInputElement>) {
+function ThemeToggle() {
+  function toggle() {
+    const html = document.documentElement;
+    const next = html.getAttribute("data-theme") === "light" ? "dark" : "light";
+    html.setAttribute("data-theme", next);
+    localStorage.setItem("cc-theme", next);
+  }
+
   return (
-    <div className="flex items-center gap-2 rounded-2xl border border-line bg-coal/50 px-4 transition focus-within:border-saffron focus-within:bg-coal/80">
-      <span className="text-base opacity-70">{icon}</span>
-      <input
-        {...props}
-        className="w-full bg-transparent py-3.5 text-cream placeholder:text-faint outline-none"
-      />
-    </div>
+    <button className="toggle" onClick={toggle} aria-label="Alternar tema">
+      <span>🌙</span> <span>TEMA</span>
+    </button>
   );
 }

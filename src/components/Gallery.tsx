@@ -4,17 +4,24 @@ import { useCallback, useEffect, useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { GalleryDish, Review } from "@/lib/types";
 import { submitReview } from "@/app/actions";
-import { StarPicker, Stars } from "./StarRating";
+import { fireConfetti } from "@/lib/confetti";
+import { showToast } from "@/lib/toast";
 
-type Props = {
-  supabase: SupabaseClient;
-  userId: string;
-  userName: string;
-};
+type Props = { supabase: SupabaseClient; userId: string; userName: string };
 
 function avg(reviews: Review[]) {
   if (!reviews.length) return 0;
   return reviews.reduce((s, r) => s + r.rating, 0) / reviews.length;
+}
+
+function StarRow({ value, size = "1.1em" }: { value: number; size?: string }) {
+  return (
+    <span className="stars" style={{ fontSize: size }}>
+      {[1, 2, 3, 4, 5].map((n) => (
+        <span key={n} className={`star ${n <= Math.round(value) ? "on" : ""}`}>★</span>
+      ))}
+    </span>
+  );
 }
 
 export default function Gallery({ supabase, userId, userName }: Props) {
@@ -37,11 +44,7 @@ export default function Gallery({ supabase, userId, userName }: Props) {
       Array.isArray(v) ? (v[0] ?? null) : (v ?? null);
 
     const mapped: GalleryDish[] = (data ?? []).map((m) => {
-      const c = one(m.country) as {
-        name_pt: string;
-        flag: string;
-        confederation: string;
-      } | null;
+      const c = one(m.country) as { name_pt: string; flag: string; confederation: string } | null;
       const f = one(m.chosen) as { text: string; author_name: string } | null;
       return {
         match_id: m.id,
@@ -64,27 +67,21 @@ export default function Gallery({ supabase, userId, userName }: Props) {
     load();
     const ch = supabase
       .channel("galeria")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "reviews" },
-        () => load(),
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "matches" },
-        () => load(),
-      )
+      .on("postgres_changes", { event: "*", schema: "public", table: "reviews" }, () => load())
+      .on("postgres_changes", { event: "*", schema: "public", table: "matches" }, () => load())
       .subscribe();
-    return () => {
-      supabase.removeChannel(ch);
-    };
+    return () => { supabase.removeChannel(ch); };
   }, [supabase, load]);
 
   if (dishes === null) {
     return (
-      <div className="space-y-4">
-        {[0, 1].map((i) => (
-          <div key={i} className="skeleton h-72 rounded-[1.75rem]" />
+      <div className="grid">
+        {[0, 1, 2].map((i) => (
+          <div
+            key={i}
+            className="gcard"
+            style={{ minHeight: 300, background: "var(--surface-2)", animation: "none", opacity: 0.5 }}
+          />
         ))}
       </div>
     );
@@ -92,32 +89,18 @@ export default function Gallery({ supabase, userId, userName }: Props) {
 
   if (dishes.length === 0) {
     return (
-      <div className="glass mt-4 rounded-[1.75rem] p-10 text-center [animation:var(--animate-rise)]">
-        <div className="text-6xl [animation:var(--animate-float)]">🖼️</div>
-        <h3 className="mt-4 font-display text-2xl font-black text-cream">
-          Galeria vazia
-        </h3>
-        <p className="mx-auto mt-2 max-w-xs text-sm text-muted">
-          Cozinhem o primeiro prato e mandem a foto — ele aparece aqui pra todo
-          mundo avaliar.
+      <section className="screen active center" style={{ marginTop: 32 }}>
+        <div style={{ fontSize: 64 }}>🖼️</div>
+        <h3 className="neon-yellow" style={{ marginTop: 16 }}>GALERIA VAZIA</h3>
+        <p className="help" style={{ marginTop: 8, maxWidth: 280, textAlign: "center" }}>
+          Cozinhem o primeiro prato e mandem a foto — ele aparece aqui pra todo mundo avaliar.
         </p>
-      </div>
+      </section>
     );
   }
 
-  const totalReviews = dishes.reduce((s, d) => s + d.reviews.length, 0);
-
   return (
-    <div className="space-y-5">
-      <div className="flex items-center justify-between px-1">
-        <p className="text-sm text-muted">
-          <span className="font-bold text-cream">{dishes.length}</span>{" "}
-          prato{dishes.length > 1 ? "s" : ""} ·{" "}
-          <span className="font-bold text-cream">{totalReviews}</span>{" "}
-          avaliaç{totalReviews === 1 ? "ão" : "ões"}
-        </p>
-      </div>
-
+    <div className="grid">
       {dishes.map((dish, i) => (
         <DishCard
           key={dish.match_id}
@@ -132,9 +115,7 @@ export default function Gallery({ supabase, userId, userName }: Props) {
 }
 
 function DishCard({
-  dish,
-  userId,
-  index,
+  dish, userId, userName, index,
 }: {
   dish: GalleryDish;
   userId: string;
@@ -146,139 +127,125 @@ function DishCard({
 
   const [open, setOpen] = useState(false);
   const [stars, setStars] = useState(mine?.rating ?? 0);
+  const [hover, setHover] = useState(0);
   const [comment, setComment] = useState(mine?.comment ?? "");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
 
   async function send() {
-    if (!stars) {
-      setErr("Escolha de 1 a 5 estrelas.");
-      return;
-    }
-    setBusy(true);
-    setErr("");
+    if (!stars) { showToast("Escolha as estrelas ⭐"); setErr("Escolha de 1 a 5 estrelas."); return; }
+    setBusy(true); setErr("");
     const r = await submitReview(dish.match_id, stars, comment);
     setBusy(false);
-    if (!r.ok) setErr(r.error ?? "Não rolou salvar.");
-    else setOpen(false);
+    if (!r.ok) { setErr(r.error ?? "Não rolou salvar."); return; }
+    fireConfetti(24);
+    showToast(`Avaliação enviada! ${"★".repeat(stars)}`);
+    setOpen(false);
   }
+
+  const shownStars = hover || stars;
 
   return (
     <article
-      className="group overflow-hidden rounded-[1.75rem] border border-line bg-card shadow-[var(--shadow-warm)] [animation:var(--animate-rise)]"
+      className="gcard"
       style={{ animationDelay: `${Math.min(index, 6) * 70}ms` }}
     >
-      {/* Foto */}
-      <div className="relative aspect-[4/3] overflow-hidden">
+      {/* Photo */}
+      <div className="gphoto">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={dish.photo_url}
-          alt={dish.dish}
-          loading="lazy"
-          className="h-full w-full object-cover transition duration-700 group-hover:scale-105"
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-coal via-coal/10 to-transparent" />
-        <div className="absolute top-3 left-3 flex items-center gap-1.5 rounded-full border border-white/15 bg-black/45 px-3 py-1.5 text-sm font-semibold backdrop-blur">
-          <span className="text-lg leading-none">{dish.country_flag}</span>
-          {dish.country_name}
-        </div>
+        <img src={dish.photo_url} alt={dish.dish} loading="lazy" />
+        <span className="flag">{dish.country_flag}</span>
         {dish.reviews.length > 0 && (
-          <div className="absolute top-3 right-3 flex items-center gap-1.5 rounded-full bg-gold px-2.5 py-1.5 text-sm font-black text-ink shadow">
-            ★ {rating.toFixed(1)}
-          </div>
+          <span className="score">★ {rating.toFixed(1)}</span>
         )}
-        <div className="absolute right-4 bottom-3 left-4">
-          <h3 className="font-display text-2xl leading-tight font-black text-cream drop-shadow">
-            {dish.dish}
-          </h3>
-          <p className="text-xs text-cream-soft/80">
-            por {dish.cook} · {dish.confederation}
-          </p>
-        </div>
       </div>
 
-      {/* Avaliações */}
-      <div className="space-y-3 p-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Stars value={rating} size="1.05rem" />
-            <span className="text-xs text-muted">
+      {/* Body */}
+      <div className="gbody">
+        <div className="gdish">{dish.dish}</div>
+        <div className="gby">
+          {dish.cook}
+          {dish.cook === userName && (
+            <> · <span className="neon">VOCÊS</span></>
+          )}
+        </div>
+
+        {/* Existing rating summary */}
+        <div className="row between wrap" style={{ gap: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <StarRow value={rating} />
+            <span className="tiny" style={{ color: "var(--muted)" }}>
               {dish.reviews.length
-                ? `${dish.reviews.length} avaliaç${dish.reviews.length === 1 ? "ão" : "ões"}`
-                : "Seja o primeiro a avaliar"}
+                ? `(${dish.reviews.length})`
+                : "sem avaliações"}
             </span>
           </div>
           <button
+            className="btn pink sm"
             onClick={() => setOpen((v) => !v)}
-            className="rounded-full bg-saffron/15 px-3 py-1.5 text-xs font-bold text-saffron-bright transition active:scale-95"
           >
-            {mine ? "Editar nota" : "Avaliar"}
+            {mine ? "EDITAR ★" : "AVALIAR ★"}
           </button>
         </div>
 
-        {/* Formulário estilo iFood */}
+        {/* Review form */}
         {open && (
-          <div className="space-y-3 rounded-2xl border border-line bg-coal/50 p-4 [animation:var(--animate-pop)]">
-            <div className="flex flex-col items-center gap-2">
-              <p className="text-sm font-semibold text-cream">
-                Quantas estrelas pra esse prato?
-              </p>
-              <StarPicker value={stars} onChange={setStars} />
+          <div className="col gap8 mt8">
+            {/* Star picker */}
+            <div
+              className="stars input-stars"
+              onMouseLeave={() => setHover(0)}
+              style={{ justifyContent: "center", fontSize: "1.6em" }}
+            >
+              {[1, 2, 3, 4, 5].map((n) => (
+                <span
+                  key={n}
+                  className={`star ${n <= shownStars ? "on" : ""}`}
+                  onMouseEnter={() => setHover(n)}
+                  onClick={() => setStars(n)}
+                  style={{ cursor: "pointer" }}
+                >
+                  ★
+                </span>
+              ))}
             </div>
+
             <textarea
+              className="input"
               value={comment}
               onChange={(e) => setComment(e.target.value)}
               rows={2}
               maxLength={280}
               placeholder="Conta como ficou… (opcional)"
-              className="w-full resize-none rounded-xl border border-line bg-coal/60 px-3 py-2.5 text-sm text-cream placeholder:text-faint outline-none focus:border-saffron"
             />
-            {err && <p className="text-xs text-paprika">{err}</p>}
-            <div className="flex gap-2">
-              <button
-                onClick={() => setOpen(false)}
-                className="flex-1 rounded-xl border border-line py-2.5 text-sm font-bold text-muted transition active:scale-95"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={send}
-                disabled={busy}
-                className="flex-1 rounded-xl bg-gradient-to-r from-saffron-bright to-paprika py-2.5 text-sm font-black text-ink transition active:scale-95 disabled:opacity-60"
-              >
-                {busy ? "Salvando…" : "Publicar"}
+
+            {err && <p className="tiny" style={{ color: "var(--pink)" }}>{err}</p>}
+
+            <div className="row gap8">
+              <button className="btn ghost sm grow" onClick={() => setOpen(false)}>CANCELAR</button>
+              <button className="btn pink sm grow" onClick={send} disabled={busy}>
+                {busy ? "SALVANDO…" : "AVALIAR ★"}
               </button>
             </div>
           </div>
         )}
 
-        {/* Lista de avaliações */}
+        {/* Reviews list */}
         {dish.reviews.length > 0 && (
-          <ul className="space-y-2.5 pt-1">
+          <div className="col" style={{ gap: 0 }}>
             {dish.reviews.map((r) => (
-              <li key={r.id} className="flex gap-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-card-2 text-sm font-black text-saffron-bright uppercase">
-                  {r.author_name.charAt(0)}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-x-2">
-                    <span className="text-sm font-bold text-cream">
-                      {r.author_name}
-                      {r.user_id === userId && (
-                        <span className="ml-1 text-[0.65rem] text-faint">
-                          (você)
-                        </span>
-                      )}
-                    </span>
-                    <Stars value={r.rating} size="0.8rem" />
-                  </div>
-                  {r.comment && (
-                    <p className="mt-0.5 text-sm text-cream-soft">{r.comment}</p>
+              <div key={r.id} className="review">
+                <div className="who">
+                  {r.author_name}
+                  {r.user_id === userId && (
+                    <span className="tiny" style={{ color: "var(--muted)", marginLeft: 6 }}>(você)</span>
                   )}
+                  <span className="s">{"★".repeat(r.rating)}</span>
                 </div>
-              </li>
+                {r.comment && <div>{r.comment}</div>}
+              </div>
             ))}
-          </ul>
+          </div>
         )}
       </div>
     </article>

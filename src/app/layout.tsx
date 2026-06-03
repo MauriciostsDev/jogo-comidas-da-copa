@@ -1,27 +1,19 @@
 import type { Metadata, Viewport } from "next";
-import { Fraunces, Geist, Geist_Mono } from "next/font/google";
+import { Press_Start_2P, VT323 } from "next/font/google";
 import "./globals.css";
 
-// Serifa editorial, calorosa e cheia de caráter — para títulos e nomes de pratos.
-const fraunces = Fraunces({
+const pressStart = Press_Start_2P({
   variable: "--ff-display",
   subsets: ["latin"],
   display: "swap",
-  axes: ["opsz", "SOFT"],
+  weight: "400",
 });
 
-// Sans limpa para o corpo / interface.
-const geist = Geist({
+const vt323 = VT323({
   variable: "--ff-body",
   subsets: ["latin"],
   display: "swap",
-});
-
-// Mono para números (cronômetro, notas).
-const geistMono = Geist_Mono({
-  variable: "--ff-mono",
-  subsets: ["latin"],
-  display: "swap",
+  weight: "400",
 });
 
 export const metadata: Metadata = {
@@ -31,7 +23,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#17110b",
+  themeColor: "#150a2e",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
@@ -43,11 +35,20 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="pt-BR"
-      className={`${fraunces.variable} ${geist.variable} ${geistMono.variable} h-full antialiased`}
-    >
-      <body className="min-h-full">{children}</body>
+    <html lang="pt-BR" className={`${pressStart.variable} ${vt323.variable}`}>
+      {/* Inline script sets data-theme from localStorage before first paint — no flash */}
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){var t=localStorage.getItem('cc-theme');document.documentElement.setAttribute('data-theme',t||'dark')})()`,
+          }}
+        />
+      </head>
+      <body>
+        <canvas id="confetti" aria-hidden="true" />
+        {children}
+        <div id="toast" className="toast" role="status" aria-live="polite" />
+      </body>
     </html>
   );
 }

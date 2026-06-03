@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { RealtimeChannel, SupabaseClient } from "@supabase/supabase-js";
+import { fireConfetti } from "@/lib/confetti";
+import { showToast } from "@/lib/toast";
 
 type Player = { userId: string; userName: string; ready: boolean };
 
@@ -9,13 +11,17 @@ type Props = {
   supabase: SupabaseClient;
   userId: string;
   userName: string;
-  /** true se já houve uma rodada (muda os textos para "próxima rodada"). */
   isNextRound: boolean;
-  /** habilitado quando ainda há seleções para sortear. */
   canDrawMore: boolean;
   busy: boolean;
   onDraw: () => void;
 };
+
+// Simple emoji avatar based on first char
+function playerEmoji(name: string) {
+  const emojis = ["🧑‍🍳", "👩‍🍳", "👨‍🍳", "🍳", "🥘", "🍲"];
+  return emojis[name.charCodeAt(0) % emojis.length];
+}
 
 export default function Lobby({
   supabase,
@@ -30,8 +36,9 @@ export default function Lobby({
   const [players, setPlayers] = useState<Player[]>([]);
   const [joined, setJoined] = useState(false);
   const [ready, setReady] = useState(false);
+  const prevPlayerCount = useRef(0);
+  const prevReadyIds = useRef<Set<string>>(new Set());
 
-  // ---------- Canal de presença da sala ----------
   useEffect(() => {
     const channel = supabase.channel("sala-comidas", {
       config: { presence: { key: userId } },
@@ -40,7 +47,6 @@ export default function Lobby({
 
     channel.on("presence", { event: "sync" }, () => {
       const state = channel.presenceState<Player>();
-      // Cada chave pode ter mais de uma conexão (abas); deduplica por userId.
       const byUser = new Map<string, Player>();
       for (const presences of Object.values(state)) {
         for (const p of presences) {
@@ -52,11 +58,31 @@ export default function Lobby({
           });
         }
       }
-      setPlayers([...byUser.values()]);
+      const list = [...byUser.values()];
+
+      // notify when partner joins
+      if (list.length > prevPlayerCount.current) {
+        const newcomer = list.find((p) => p.userId !== userId);
+        if (newcomer) {
+          showToast(`👋 ${newcomer.userName} entrou na sala!`);
+        }
+      }
+      prevPlayerCount.current = list.length;
+
+      // notify when a partner becomes ready (confetti + toast)
+      for (const p of list) {
+        if (p.userId !== userId && p.ready && !prevReadyIds.current.has(p.userId)) {
+          fireConfetti(20);
+          showToast(`🔥 ${p.userName} marcou pronto!`);
+          prevReadyIds.current.add(p.userId);
+        }
+        if (!p.ready) prevReadyIds.current.delete(p.userId);
+      }
+
+      setPlayers(list);
     });
 
     channel.subscribe();
-
     return () => {
       supabase.removeChannel(channel);
       channelRef.current = null;
@@ -83,145 +109,124 @@ export default function Lobby({
   const others = players.filter((p) => p.userId !== userId);
   const everyoneReady = players.length >= 2 && players.every((p) => p.ready);
 
-  // ---------- Ainda não entrei ----------
+  // Slot para a dupla (pode ser null = aguardando)
+  const matePlayer = others[0] ?? null;
+
+  // -------- Ainda não entrei --------
   if (!joined) {
     return (
-      <div className="glass relative overflow-hidden rounded-[1.75rem] p-8 text-center [animation:var(--animate-rise)]">
-        <div className="pointer-events-none absolute -top-8 -right-6 text-[8rem] opacity-10 [animation:var(--animate-float)]">
-          🚪
-        </div>
-        <div className="text-7xl [animation:var(--animate-float)]">
-          {others.length ? "👋" : "🛋️"}
-        </div>
-        <h2 className="mt-4 font-display text-3xl font-black text-cream">
-          {isNextRound ? "Sala da próxima rodada" : "Sala de espera"}
-        </h2>
-
-        {others.length ? (
-          <p className="mx-auto mt-2 max-w-xs text-sm text-muted">
-            <strong className="text-saffron-bright">
-              {others.map((p) => p.userName).join(", ")}
-            </strong>{" "}
-            {others.length > 1 ? "estão" : "está"} na sala esperando você. Entre
-            pra começar!
-          </p>
-        ) : (
-          <p className="mx-auto mt-2 max-w-xs text-sm text-muted">
-            Entre na sala e aguarde sua dupla aparecer aqui ao vivo.
-          </p>
-        )}
-
-        <button
-          onClick={joinRoom}
-          className="mt-6 w-full rounded-2xl bg-gradient-to-r from-saffron-bright to-paprika py-4 text-lg font-black text-ink shadow-[var(--shadow-glow)] transition active:scale-[0.98]"
-        >
-          🚪 Entrar na sala
+      <section className="screen active center">
+        <h2 className="neon-pink">🚪 SALA DE ESPERA</h2>
+        <p className="lead">
+          {others.length
+            ? `${others.map((p) => p.userName).join(", ")} está na sala!`
+            : "Entre e aguarde sua dupla aparecer ao vivo."}
+        </p>
+        <button className="btn lg green mt20" onClick={joinRoom}>
+          ENTRAR NA SALA 🚪
         </button>
-      </div>
+      </section>
     );
   }
 
-  // ---------- Já entrei: lista de jogadores + ready-check ----------
-  const slots: (Player | null)[] = [...players];
-  if (slots.length < 2) slots.push(null); // mostra a vaga aguardando a dupla
+  // -------- Já entrei: ready-check --------
+  const hint = everyoneReady
+    ? "Tudo pronto! Bora sortear ⚽"
+    : !matePlayer
+      ? "Esperando sua dupla entrar…"
+      : "Os dois precisam marcar PRONTO";
 
   return (
-    <div className="glass rounded-[1.75rem] p-6 [animation:var(--animate-rise)]">
-      <div className="text-center">
-        <h2 className="font-display text-3xl font-black text-cream">
-          {isNextRound ? "Próxima rodada" : "Sala de espera"}
-        </h2>
-        <p className="mt-1 text-sm text-muted">
-          {everyoneReady
-            ? "Todo mundo pronto! Bora sortear 🎲"
-            : players.length < 2
-              ? "Aguardando a outra pessoa entrar na sala…"
-              : "Esperando os dois ficarem prontos…"}
-        </p>
+    <section className="screen active">
+      <div className="row between wrap">
+        <h2 className="neon-pink">🚪 SALA DE ESPERA</h2>
+        <span className="badge dot">SALA #2026</span>
       </div>
+      <p className="help">{hint}</p>
 
-      {/* Jogadores */}
-      <div className="mt-5 space-y-2.5">
-        {slots.map((p, i) =>
-          p ? (
-            <div
-              key={p.userId}
-              className="flex items-center gap-3 rounded-2xl border border-line bg-card/60 p-3"
-            >
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-saffron to-paprika text-lg font-black text-ink uppercase">
-                {p.userName.charAt(0)}
+      <div className="col gap20 mt8">
+        {/* Meu slot */}
+        <div className="player me">
+          <div className="avatar">{playerEmoji(userName)}</div>
+          <div>
+            <div className="pname">{userName.toUpperCase().slice(0, 14)}</div>
+            <div className="pmeta">jogador 1 · você</div>
+          </div>
+          <span className={`ready-tag ${ready ? "yes" : "no"}`}>
+            {ready ? "✓ PRONTO" : "AGUARDANDO"}
+          </span>
+        </div>
+
+        {/* Slot da dupla */}
+        {matePlayer ? (
+          <div className="player">
+            <div className="avatar">{playerEmoji(matePlayer.userName)}</div>
+            <div>
+              <div className="pname">
+                {matePlayer.userName.toUpperCase().slice(0, 14)}
               </div>
-              <div className="min-w-0 flex-1">
-                <p className="truncate font-bold text-cream">
-                  {p.userName}
-                  {p.userId === userId && (
-                    <span className="ml-1 text-xs text-faint">(você)</span>
-                  )}
-                </p>
-                <p className="text-xs text-muted">
-                  {p.ready ? "pronto pra jogar" : "decidindo…"}
-                </p>
-              </div>
-              <span
-                className={`rounded-full px-3 py-1 text-xs font-bold ${
-                  p.ready
-                    ? "bg-pitch/15 text-pitch"
-                    : "bg-card-2 text-faint"
-                }`}
-              >
-                {p.ready ? "✓ Pronto" : "Aguardando"}
-              </span>
+              <div className="pmeta">jogador 2</div>
             </div>
-          ) : (
-            <div
-              key={`empty-${i}`}
-              className="flex items-center gap-3 rounded-2xl border border-dashed border-line bg-card/20 p-3"
-            >
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-card-2 text-lg">
-                ⏳
+            <span className={`ready-tag ${matePlayer.ready ? "yes" : "no"}`}>
+              {matePlayer.ready ? "✓ PRONTO" : "AGUARDANDO"}
+            </span>
+          </div>
+        ) : (
+          <div className="player empty-slot">
+            <div className="avatar">❓</div>
+            <div>
+              <div className="pname">PROCURANDO…</div>
+              <div className="pmeta" style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                <span className="typing">
+                  <span /><span /><span />
+                </span>
+                aguardando dupla
               </div>
-              <p className="text-sm text-faint">
-                Vaga livre — aguardando sua dupla entrar…
-              </p>
             </div>
-          ),
+          </div>
         )}
       </div>
 
       {/* Ações */}
-      <div className="mt-5 space-y-2.5">
-        {everyoneReady ? (
-          <button
-            onClick={onDraw}
-            disabled={busy || !canDrawMore}
-            className="w-full rounded-2xl bg-gradient-to-r from-saffron-bright to-paprika py-4 text-lg font-black text-ink shadow-[var(--shadow-glow)] transition active:scale-[0.98] disabled:opacity-60"
-          >
-            {!canDrawMore
-              ? "Acabaram as seleções! 🏁"
-              : busy
-                ? "Sorteando…"
-                : "🎲 Sortear seleção"}
-          </button>
-        ) : (
-          <button
-            onClick={toggleReady}
-            className={`w-full rounded-2xl py-4 text-lg font-black transition active:scale-[0.98] ${
-              ready
-                ? "border border-line bg-card text-muted"
-                : "bg-gradient-to-r from-pitch to-saffron text-ink shadow-[var(--shadow-glow)]"
-            }`}
-          >
-            {ready ? "✓ Estou pronto (cancelar)" : "Estou pronto!"}
-          </button>
-        )}
-
+      <div className="row gap20 mt20 wrap">
         <button
-          onClick={leaveRoom}
-          className="w-full rounded-xl py-2 text-xs font-semibold text-faint transition active:scale-95"
+          className={`btn grow ${ready ? "ghost" : "green"}`}
+          style={{ minWidth: 200 }}
+          onClick={toggleReady}
         >
-          Sair da sala
+          {ready ? "CANCELAR" : "ESTOU PRONTO"}
+        </button>
+        <button
+          className="btn yellow grow"
+          style={{ minWidth: 200 }}
+          disabled={!everyoneReady || busy || !canDrawMore}
+          onClick={onDraw}
+        >
+          {!canDrawMore
+            ? "ACABARAM AS SELEÇÕES 🏁"
+            : busy
+              ? "SORTEANDO…"
+              : "LIBERAR SORTEIO 🎲"}
         </button>
       </div>
-    </div>
+
+      <button
+        onClick={leaveRoom}
+        className="tiny mt20"
+        style={{
+          background: "none",
+          border: "none",
+          color: "var(--muted)",
+          cursor: "pointer",
+          alignSelf: "center",
+        }}
+      >
+        sair da sala
+      </button>
+
+      <p className="tiny" style={{ color: "var(--muted)", marginTop: "auto" }}>
+        Dica: os dois precisam marcar PRONTO pra liberar o sorteio.
+      </p>
+    </section>
   );
 }

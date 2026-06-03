@@ -12,16 +12,30 @@ import {
 } from "@/app/actions";
 import Gallery from "./Gallery";
 import Lobby from "./Lobby";
+import { buildReelSeq, rndTeam, type Team } from "@/lib/teams";
+import { fireConfetti } from "@/lib/confetti";
+import { showToast } from "@/lib/toast";
 
 type Props = { userId: string; userName: string };
 
 const TOTAL_PAISES = 48;
 const RODADA_SEGUNDOS = 7 * 60;
+const ITEM_H = 120;
+const REEL_LEN = 26;
+
+const STEP_OF: Record<string, number> = {
+  lobby: 0,
+  draw: 1,
+  write: 2,
+  pick: 2,
+  cook: 3,
+  gallery: 4,
+};
+type Scene = "lobby" | "draw" | "write" | "pick" | "cook" | "gallery";
 
 export default function Game({ userId, userName }: Props) {
   const [supabase] = useState(() => createClient());
 
-  const [tab, setTab] = useState<"jogar" | "galeria">("jogar");
   const [match, setMatch] = useState<Match | null>(null);
   const [country, setCountry] = useState<Country | null>(null);
   const [foods, setFoods] = useState<Food[]>([]);
@@ -33,12 +47,25 @@ export default function Game({ userId, userName }: Props) {
   const [now, setNow] = useState(() => Date.now());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [confirmSwap, setConfirmSwap] = useState(false);
+
+  // Draw animation
+  const [drawPhase, setDrawPhase] = useState<"idle" | "spinning" | "result">("idle");
+  const [reelSeq, setReelSeq] = useState<Team[]>([]);
+  const [reelOffset, setReelOffset] = useState(0);
+  const [reelAnimating, setReelAnimating] = useState(false);
+
+  // Pick / swap
+  const [pickConfirmed, setPickConfirmed] = useState(false);
+  const [swapConfirm, setSwapConfirm] = useState(false);
+  const lastMatchId = useRef<string | null>(null);
+
+  // Gallery tab
+  const [showGallery, setShowGallery] = useState(false);
 
   const myFoodLoadedFor = useRef<string | null>(null);
   const choosingTriggered = useRef<string | null>(null);
 
-  // ---------- Carrega o estado atual do jogo ----------
+  // ── Load game state ──────────────────────────────────────────
   const refresh = useCallback(async () => {
     const { count } = await supabase
       .from("countries")
@@ -52,70 +79,50 @@ export default function Game({ userId, userName }: Props) {
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
-
     setMatch(m ?? null);
 
-    if (!m) {
-      setCountry(null);
-      setFoods([]);
-      setChosenFood(null);
-      return;
-    }
+    if (!m) { setCountry(null); setFoods([]); setChosenFood(null); return; }
 
     const [{ data: c }, { data: f }] = await Promise.all([
       supabase.from("countries").select("*").eq("id", m.country_id).single(),
-      supabase
-        .from("foods")
-        .select("*")
-        .eq("match_id", m.id)
-        .order("created_at", { ascending: true }),
+      supabase.from("foods").select("*").eq("match_id", m.id).order("created_at", { ascending: true }),
     ]);
-
     setCountry(c ?? null);
     setFoods(f ?? []);
     setChosenFood((f ?? []).find((x) => x.id === m.chosen_food_id) ?? null);
   }, [supabase]);
 
-  // ---------- Sincronização ao vivo (Realtime) ----------
+  // ── Realtime ─────────────────────────────────────────────────
   useEffect(() => {
     refresh();
     const ch = supabase
       .channel("jogo-comidas")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "matches" },
-        () => refresh(),
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "foods" },
-        () => refresh(),
-      )
+      .on("postgres_changes", { event: "*", schema: "public", table: "matches" }, () => refresh())
+      .on("postgres_changes", { event: "*", schema: "public", table: "foods" }, () => refresh())
       .subscribe();
-
-    return () => {
-      supabase.removeChannel(ch);
-    };
+    return () => { supabase.removeChannel(ch); };
   }, [supabase, refresh]);
 
-  // ---------- Relógio (1s) ----------
+  // ── Clock ────────────────────────────────────────────────────
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
   }, []);
 
-  // Fecha a confirmação de troca quando o prato ou a fase mudam.
+  // ── Reset pick / swap when match changes ─────────────────────
   useEffect(() => {
-    setConfirmSwap(false);
-  }, [match?.chosen_food_id, match?.status]);
-
-  // ---------- Preenche meu campo com o que já escrevi ----------
-  useEffect(() => {
-    if (!match) {
-      myFoodLoadedFor.current = null;
-      setMyText("");
-      return;
+    if (match?.id && match.id !== lastMatchId.current) {
+      lastMatchId.current = match.id;
+      setPickConfirmed(false);
+      setSwapConfirm(false);
     }
+  }, [match?.id]);
+
+  useEffect(() => { setSwapConfirm(false); }, [match?.chosen_food_id, match?.status]);
+
+  // ── Pre-fill my food text ────────────────────────────────────
+  useEffect(() => {
+    if (!match) { myFoodLoadedFor.current = null; setMyText(""); return; }
     if (myFoodLoadedFor.current !== match.id) {
       const mine = foods.find((f) => f.user_id === userId);
       setMyText(mine?.text ?? "");
@@ -123,42 +130,35 @@ export default function Game({ userId, userName }: Props) {
     }
   }, [match, foods, userId]);
 
-  // ---------- Canal de "digitando ao vivo" ----------
+  // ── Live typing channel ───────────────────────────────────────
   useEffect(() => {
     if (!match || match.status !== "writing") return;
     const ch = supabase.channel(`digitando-${match.id}`);
     ch.on("broadcast", { event: "typing" }, ({ payload }) => {
       if (payload.userId !== userId) setPartnerTyping(payload.text);
     }).subscribe();
-    return () => {
-      supabase.removeChannel(ch);
-      setPartnerTyping("");
-    };
+    return () => { supabase.removeChannel(ch); setPartnerTyping(""); };
   }, [supabase, match, userId]);
 
-  const broadcastTyping = (text: string) => {
+  function broadcastTyping(text: string) {
     if (!match) return;
     supabase.channel(`digitando-${match.id}`).send({
-      type: "broadcast",
-      event: "typing",
-      payload: { userId, text },
+      type: "broadcast", event: "typing", payload: { userId, text },
     });
-  };
+  }
 
   const myFood = foods.find((f) => f.user_id === userId) ?? null;
   const partnerFood = foods.find((f) => f.user_id !== userId) ?? null;
   const bothSubmitted = foods.length >= 2;
-  // A outra opção (prato não sorteado) — só existe se os dois enviaram.
-  const otherFood = chosenFood
-    ? (foods.find((f) => f.id !== chosenFood.id) ?? null)
-    : null;
+  const otherFood = chosenFood ? (foods.find((f) => f.id !== chosenFood.id) ?? null) : null;
 
   const deadline = match ? new Date(match.writing_deadline).getTime() : 0;
   const secondsLeft = Math.max(0, Math.floor((deadline - now) / 1000));
   const timeUp = match?.status === "writing" && secondsLeft <= 0;
-  const progress = Math.max(0, Math.min(1, secondsLeft / RODADA_SEGUNDOS));
+  const timerProgress = Math.max(0, Math.min(1, secondsLeft / RODADA_SEGUNDOS));
+  const timerBg = timerProgress < 0.15 ? "var(--orange)" : timerProgress < 0.35 ? "var(--yellow)" : "var(--green)";
 
-  // ---------- Sorteia o prato automaticamente ----------
+  // ── Auto-choose food ──────────────────────────────────────────
   useEffect(() => {
     if (!match || match.status !== "writing") return;
     if (choosingTriggered.current === match.id) return;
@@ -169,20 +169,49 @@ export default function Game({ userId, userName }: Props) {
     }
   }, [match, foods.length, bothSubmitted, timeUp]);
 
-  // ---------- Ações ----------
+  // ── Draw: when country arrives during "spinning" → animate → result ──
+  useEffect(() => {
+    if (drawPhase !== "spinning" || !country) return;
+
+    setReelSeq((prev) => {
+      const next = [...prev];
+      next[REEL_LEN - 2] = { f: country.flag, n: country.name_pt, c: country.confederation };
+      return next;
+    });
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        setReelOffset((REEL_LEN - 2) * ITEM_H);
+        setReelAnimating(true);
+      });
+    });
+
+    const t = setTimeout(() => {
+      setDrawPhase("result");
+      fireConfetti(80);
+    }, 3300);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drawPhase, country?.id]);
+
+  // ── Actions ───────────────────────────────────────────────────
   async function handleDraw() {
     setError("");
     setBusy(true);
+    const seq = buildReelSeq(rndTeam(), REEL_LEN);
+    setReelSeq(seq);
+    setReelOffset(0);
+    setReelAnimating(false);
+    setDrawPhase("spinning");
     const r = await drawCountry();
     setBusy(false);
-    if (!r.ok) setError(r.error ?? "Erro ao sortear.");
-    else refresh();
+    if (!r.ok) { setError(r.error ?? "Erro ao sortear."); setDrawPhase("idle"); return; }
+    await refresh();
   }
 
   async function handleSubmitFood() {
     if (!match) return;
-    setError("");
-    setBusy(true);
+    setError(""); setBusy(true);
     const r = await submitFood(match.id, myText);
     setBusy(false);
     if (!r.ok) setError(r.error ?? "Erro ao salvar.");
@@ -191,100 +220,97 @@ export default function Game({ userId, userName }: Props) {
 
   async function handleSwap(foodId: string) {
     if (!match) return;
-    setError("");
-    setBusy(true);
+    setError(""); setBusy(true);
     const r = await swapFood(match.id, foodId);
-    setBusy(false);
-    setConfirmSwap(false);
-    if (!r.ok) setError(r.error ?? "Erro ao trocar o prato.");
-    else refresh();
+    setBusy(false); setSwapConfirm(false);
+    if (!r.ok) setError(r.error ?? "Erro ao trocar.");
+    else { refresh(); showToast("Prato trocado! ✅"); }
   }
 
-  async function handlePhoto(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file || !match) return;
-    setError("");
-    setBusy(true);
+  async function handleUpload(file: File) {
+    if (!match) return;
+    setError(""); setBusy(true);
     const ext = file.name.split(".").pop() ?? "jpg";
     const path = `${match.id}/${Date.now()}.${ext}`;
-    const up = await supabase.storage.from("fotos").upload(path, file, {
-      upsert: true,
-    });
-    if (up.error) {
-      setBusy(false);
-      setError("Erro ao enviar a foto: " + up.error.message);
-      return;
-    }
+    const up = await supabase.storage.from("fotos").upload(path, file, { upsert: true });
+    if (up.error) { setBusy(false); setError("Erro ao enviar: " + up.error.message); return; }
     const { data } = supabase.storage.from("fotos").getPublicUrl(path);
     const r = await attachPhoto(match.id, data.publicUrl);
     setBusy(false);
     if (!r.ok) setError(r.error ?? "Erro ao salvar a foto.");
-    else refresh();
+    else { fireConfetti(100); showToast("📸 Foto enviada pra galeria!"); refresh(); }
   }
 
   const status = match?.status ?? null;
   const canDraw = !match || status === "done";
 
+  // Active scene
+  let scene: Scene;
+  if (showGallery) { scene = "gallery"; }
+  else if (drawPhase === "spinning" || drawPhase === "result") { scene = "draw"; }
+  else if (status === "writing") { scene = "write"; }
+  else if (status === "cooking" && !pickConfirmed) { scene = "pick"; }
+  else if (status === "cooking" && pickConfirmed) { scene = "cook"; }
+  else { scene = "lobby"; }
+
+  const stepIdx = STEP_OF[scene] ?? 0;
+
   return (
-    <div className="relative z-10 mx-auto flex min-h-dvh max-w-lg flex-col px-4 pb-28 pt-4">
-      {/* ---------- Cabeçalho ---------- */}
-      <header className="flex items-center justify-between">
-        <div>
-          <h1 className="font-display text-2xl font-black tracking-tight">
-            <span className="text-gradient">Comidas</span>{" "}
-            <span className="text-cream">da Copa</span>
-          </h1>
-          <p className="text-xs text-muted">Olá, {userName} 👋</p>
+    <>
+      {/* ── Topbar ────────────────────────────────────────────── */}
+      <header className="topbar">
+        <div className="brand">
+          <span className="ball">⚽</span> COMIDAS <b>DA COPA</b>
         </div>
-        <form action="/auth/signout" method="post">
-          <button className="rounded-full border border-line bg-card/60 px-4 py-2 text-xs font-semibold text-muted transition active:scale-95">
-            Sair
-          </button>
-        </form>
+        <div className="right">
+          <ThemeToggle />
+          <form action="/auth/signout" method="post" style={{ display: "inline" }}>
+            <button className="toggle" style={{ fontSize: 9 }}>SAIR</button>
+          </form>
+        </div>
       </header>
 
-      {/* Progresso de países sorteados */}
-      <div className="mt-4 flex items-center gap-3 rounded-2xl border border-line bg-card/50 px-4 py-2.5">
-        <span className="text-lg">🌍</span>
-        <div className="flex-1">
-          <div className="flex justify-between text-[0.7rem] font-semibold text-muted">
-            <span>Seleções sorteadas</span>
-            <span className="font-mono text-cream">
-              {drawnCount}/{TOTAL_PAISES}
-            </span>
-          </div>
-          <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-coal">
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-saffron to-paprika transition-all duration-700"
-              style={{ width: `${(drawnCount / TOTAL_PAISES) * 100}%` }}
-            />
-          </div>
+      <main className="stage">
+        {/* Stepper */}
+        <div className="steps">
+          {[1, 2, 3, 4, 5].map((n, i) => (
+            <div key={n} className={`step ${i < stepIdx ? "done" : i === stepIdx ? "cur" : ""}`}>
+              <span className="dot">{n}</span>
+              {i < 4 && <span className="bar" />}
+            </div>
+          ))}
         </div>
-      </div>
 
-      {error && (
-        <p className="mt-4 rounded-2xl border border-paprika/40 bg-paprika/15 px-4 py-2.5 text-sm text-paprika [animation:var(--animate-pop)]">
-          {error}
-        </p>
-      )}
+        {error && (
+          <p className="tiny" style={{ color: "var(--pink)" }}>⚠ {error}</p>
+        )}
 
-      {/* ---------- Conteúdo ---------- */}
-      <main className="mt-5 flex-1">
-        {tab === "galeria" ? (
-          <Gallery supabase={supabase} userId={userId} userName={userName} />
-        ) : (
-          <div className="space-y-4">
-            {/* Resultado da rodada concluída */}
+        {/* ── 1&2. LOBBY ─────────────────────────────────────── */}
+        {scene === "lobby" && (
+          <>
+            {/* Result card from previous round */}
             {status === "done" && country && chosenFood && (
-              <ResultCard
-                country={country}
-                food={chosenFood}
-                photo={match?.photo_url ?? null}
-                onSeeGallery={() => setTab("galeria")}
-              />
+              <div className="card accent bolts" style={{ textAlign: "center" }}>
+                <div className="card-title">RODADA CONCLUÍDA 🎉</div>
+                {match?.photo_url && (
+                  <div className="preview-wrap" style={{ marginBottom: 12 }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={match.photo_url}
+                      alt={chosenFood.text}
+                      style={{ aspectRatio: "4/3", objectFit: "cover", width: "100%" }}
+                    />
+                  </div>
+                )}
+                <div className="result-flag">{country.flag}</div>
+                <h2 style={{ marginTop: 8 }}>{country.name_pt}</h2>
+                <p className="lead" style={{ marginTop: 4 }}>🍲 {chosenFood.text}</p>
+                <p className="tiny" style={{ color: "var(--muted)", marginTop: 6 }}>
+                  por {chosenFood.author_name}
+                </p>
+              </div>
             )}
 
-            {/* Sala de espera + ready-check antes de sortear */}
             {canDraw && (
               <Lobby
                 supabase={supabase}
@@ -296,305 +322,378 @@ export default function Game({ userId, userName }: Props) {
                 onDraw={handleDraw}
               />
             )}
+          </>
+        )}
 
-            {/* Fase: escrever o prato */}
-            {status === "writing" && country && (
-              <div className="space-y-4 [animation:var(--animate-rise)]">
-                <div className="overflow-hidden rounded-[1.75rem] border border-line bg-gradient-to-b from-card-2 to-card p-6 text-center shadow-[var(--shadow-warm)]">
-                  <p className="text-[0.7rem] font-bold tracking-[0.2em] text-saffron uppercase">
-                    {country.confederation}
-                  </p>
-                  <div className="mt-2 text-7xl [animation:var(--animate-pop)]">
-                    {country.flag}
+        {/* ── 3. SORTEIO DA SELEÇÃO ──────────────────────────── */}
+        {scene === "draw" && (
+          <section className="screen active center">
+            <h2 className="neon">🎲 SORTEIO DA SELEÇÃO</h2>
+            <p className="help">48 seleções na roleta. Boa sorte!</p>
+
+            {drawPhase === "spinning" && (
+              <div style={{ width: "100%", maxWidth: 480, marginTop: 8 }}>
+                <div className="reel">
+                  <div
+                    className="reel-track"
+                    style={{
+                      transform: `translateY(-${reelOffset}px)`,
+                      transition: reelAnimating ? "transform 3.1s cubic-bezier(.12,.78,.18,1)" : "none",
+                    }}
+                  >
+                    {reelSeq.map((t, i) => (
+                      <div key={i} className="reel-item">
+                        <span className="reel-flag">{t.f}</span>
+                        <span className="reel-name">{t.n}</span>
+                      </div>
+                    ))}
                   </div>
-                  <h2 className="mt-1 font-display text-4xl font-black text-cream">
-                    {country.name_pt}
-                  </h2>
+                  <div className="reel-line" />
+                </div>
+              </div>
+            )}
 
-                  {/* Cronômetro */}
-                  <div className="mt-5">
-                    <div
-                      className={`font-mono text-5xl font-black tabular-nums ${
-                        secondsLeft <= 60
-                          ? "text-paprika [animation:var(--animate-pop)]"
-                          : "text-cream"
-                      }`}
-                    >
-                      {Math.floor(secondsLeft / 60)}:
+            {drawPhase === "result" && country && (
+              <div className="card bolts accent" style={{ width: "100%", maxWidth: 480, marginTop: 8 }}>
+                <div className="card-title">SUA SELEÇÃO</div>
+                <div className="result-flag">{country.flag}</div>
+                <h2 style={{ marginTop: 10 }}>{country.name_pt}</h2>
+                <span className="badge confed" style={{ marginTop: 8 }}>{country.confederation}</span>
+                <div className="col mt20" style={{ gap: 8 }}>
+                  <div className="row between">
+                    <span className="tiny" style={{ color: "var(--muted)" }}>⏱ TEMPO PRA ESCOLHER</span>
+                    <span className={`timer ${secondsLeft <= 60 ? "warn" : ""}`}>
+                      {String(Math.floor(secondsLeft / 60)).padStart(2, "0")}:
                       {String(secondsLeft % 60).padStart(2, "0")}
-                    </div>
-                    <div className="mx-auto mt-2 h-1.5 max-w-[12rem] overflow-hidden rounded-full bg-coal">
-                      <div
-                        className={`h-full rounded-full transition-all duration-1000 ${
-                          secondsLeft <= 60
-                            ? "bg-paprika"
-                            : "bg-gradient-to-r from-saffron to-paprika"
-                        }`}
-                        style={{ width: `${progress * 100}%` }}
-                      />
-                    </div>
-                    <p className="mt-3 text-sm text-muted">
-                      Qual prato típico representa esse país? 🍴
-                    </p>
+                    </span>
+                  </div>
+                  <div className="timerbar">
+                    <i style={{ width: `${timerProgress * 100}%`, background: timerBg }} />
                   </div>
                 </div>
+              </div>
+            )}
 
-                {/* Meu campo */}
-                <div className="rounded-[1.5rem] border border-line bg-card p-4">
-                  <div className="mb-2 flex items-center justify-between">
-                    <p className="text-xs font-bold tracking-wide text-saffron-bright uppercase">
-                      Seu prato
-                    </p>
-                    {myFood && (
-                      <span className="rounded-full bg-pitch/15 px-2 py-0.5 text-[0.65rem] font-bold text-pitch">
-                        ✓ enviado
-                      </span>
-                    )}
+            {drawPhase === "result" && (
+              <button className="btn lg green mt8" onClick={() => setDrawPhase("idle")}>
+                ESCREVER O PRATO ▸
+              </button>
+            )}
+          </section>
+        )}
+
+        {/* ── 4. ESCREVER O PRATO ────────────────────────────── */}
+        {scene === "write" && country && (
+          <section className="screen active">
+            <div className="row between wrap">
+              <h2 className="neon-yellow">✍️ ESCREVA O PRATO</h2>
+              <span className="badge">
+                <span>{country.flag}</span> <span>{country.name_pt}</span>
+              </span>
+            </div>
+            <p className="help">Qual prato típico desse país vocês vão encarar?</p>
+
+            <div className="row between" style={{ marginTop: 4 }}>
+              <span className="tiny" style={{ color: "var(--muted)" }}>⏱ TEMPO RESTANTE</span>
+              <span className={`timer ${secondsLeft <= 60 ? "warn" : ""}`}>
+                {String(Math.floor(secondsLeft / 60)).padStart(2, "0")}:
+                {String(secondsLeft % 60).padStart(2, "0")}
+              </span>
+            </div>
+            <div className="timerbar">
+              <i style={{ width: `${timerProgress * 100}%`, background: timerBg }} />
+            </div>
+
+            <div className="field mt8">
+              <label className="label">SEU PRATO TÍPICO</label>
+              <input
+                className="input"
+                value={myText}
+                onChange={(e) => { setMyText(e.target.value); broadcastTyping(e.target.value); }}
+                placeholder="ex: Feijoada, Paella, Ramen…"
+                maxLength={40}
+                disabled={!!myFood}
+              />
+            </div>
+            {myFood && (
+              <span className="badge" style={{ color: "var(--green)", borderColor: "var(--green)" }}>
+                ✓ ENVIADO
+              </span>
+            )}
+
+            <div className="card tight" style={{ marginTop: 8 }}>
+              <div className="card-title">👩‍🍳 SUA DUPLA</div>
+              {partnerFood ? (
+                <span className="badge dot" style={{ marginTop: 6 }}>✓ dupla finalizou</span>
+              ) : (
+                <>
+                  <div className="row gap8" style={{ marginBottom: 4 }}>
+                    <span className="typing"><span /><span /><span /></span>
+                    <span className="help">digitando…</span>
                   </div>
-                  <div className="flex gap-2">
-                    <input
-                      value={myText}
-                      onChange={(e) => {
-                        setMyText(e.target.value);
-                        broadcastTyping(e.target.value);
-                      }}
-                      placeholder="Ex.: Feijoada, Tacos, Sushi…"
-                      className="w-full rounded-xl border border-line bg-coal/60 px-3.5 py-3 text-cream placeholder:text-faint outline-none focus:border-saffron"
-                    />
-                    <button
-                      onClick={handleSubmitFood}
-                      disabled={busy || !myText.trim()}
-                      className="shrink-0 rounded-xl bg-saffron px-5 font-black text-ink transition active:scale-95 disabled:opacity-50"
-                    >
-                      {myFood ? "Salvar" : "Enviar"}
+                  {partnerTyping && <div className="live-text caret">{partnerTyping}</div>}
+                </>
+              )}
+            </div>
+
+            {(bothSubmitted || timeUp) && (
+              <p className="tiny" style={{ color: "var(--yellow)", textAlign: "center" }}>
+                🎲 Sorteando qual prato vocês vão fazer…
+              </p>
+            )}
+
+            <button
+              className="btn lg green mt20"
+              onClick={handleSubmitFood}
+              disabled={busy || !myText.trim() || !!myFood}
+            >
+              CONFIRMAR PRATO ▸
+            </button>
+            <p className="tiny" style={{ color: "var(--muted)", marginTop: "auto" }}>
+              O sistema vai sortear entre o seu prato e o da sua dupla.
+            </p>
+          </section>
+        )}
+
+        {/* ── 5. PRATO SORTEADO ──────────────────────────────── */}
+        {scene === "pick" && chosenFood && (
+          <section className="screen active center">
+            <h2 className="neon-pink">🍴 PRATO SORTEADO</h2>
+            <p className="help">O sistema escolheu — mas a decisão final é de vocês.</p>
+
+            <div className="col gap20 mt8" style={{ width: "100%", maxWidth: 440 }}>
+              <div className="dish win">
+                <span className="tag">🎲 SORTEADO</span>
+                <div className="emoji">🍽️</div>
+                <div className="dname">{chosenFood.text}</div>
+                <div className="by">por {chosenFood.author_name}</div>
+              </div>
+
+              {otherFood && (
+                <div className="dish">
+                  <span className="tag">OUTRA OPÇÃO</span>
+                  <div className="emoji">🍳</div>
+                  <div className="dname">{otherFood.text}</div>
+                  <div className="by">por {otherFood.author_name}</div>
+                </div>
+              )}
+            </div>
+
+            {otherFood && !swapConfirm && (
+              <button className="btn ghost mt20" onClick={() => setSwapConfirm(true)} disabled={busy}>
+                TROCAR PELA OUTRA ⇄
+              </button>
+            )}
+
+            {swapConfirm && otherFood && (
+              <div className="modal-overlay" onClick={() => setSwapConfirm(false)}>
+                <div className="card bolts accent modal-box" onClick={(e) => e.stopPropagation()}>
+                  <div className="card-title">TROCAR PRATO?</div>
+                  <p>Trocar para <strong style={{ color: "var(--accent)" }}>"{otherFood.text}"</strong>?</p>
+                  <div className="row gap20 mt20" style={{ justifyContent: "center" }}>
+                    <button className="btn ghost" onClick={() => setSwapConfirm(false)}>NÃO</button>
+                    <button className="btn green" onClick={() => handleSwap(otherFood.id)} disabled={busy}>
+                      SIM, TROCAR
                     </button>
                   </div>
                 </div>
-
-                {/* Campo da dupla */}
-                <div className="rounded-[1.5rem] border border-line bg-card/40 p-4">
-                  <div className="mb-1 flex items-center justify-between">
-                    <p className="text-xs font-bold tracking-wide text-muted uppercase">
-                      Sua dupla
-                    </p>
-                    {partnerFood && (
-                      <span className="rounded-full bg-pitch/15 px-2 py-0.5 text-[0.65rem] font-bold text-pitch">
-                        ✓ enviou
-                      </span>
-                    )}
-                  </div>
-                  <p className="min-h-[1.75rem] text-lg text-cream">
-                    {partnerFood ? (
-                      <>🍲 {partnerFood.text}</>
-                    ) : partnerTyping ? (
-                      <span className="text-muted italic">
-                        ✍️ {partnerTyping}
-                      </span>
-                    ) : (
-                      <span className="text-faint">aguardando…</span>
-                    )}
-                  </p>
-                </div>
-
-                {(bothSubmitted || timeUp) && (
-                  <p className="text-center font-bold text-saffron-bright [animation:var(--animate-pop)]">
-                    🎲 Sorteando qual prato vocês vão fazer…
-                  </p>
-                )}
               </div>
             )}
 
-            {/* Fase: cozinhar */}
-            {status === "cooking" && country && chosenFood && (
-              <div className="space-y-4 [animation:var(--animate-rise)]">
-                <div className="overflow-hidden rounded-[1.75rem] border border-line bg-gradient-to-b from-card-2 to-card p-6 text-center shadow-[var(--shadow-warm)]">
-                  <p className="text-[0.7rem] font-bold tracking-[0.2em] text-saffron uppercase">
-                    {country.confederation}
-                  </p>
-                  <div className="mt-2 text-7xl">{country.flag}</div>
-                  <h3 className="mt-1 font-display text-2xl font-black text-cream">
-                    {country.name_pt}
-                  </h3>
-                  <p className="mt-4 text-xs text-muted">
-                    O prato sorteado foi (escrito por {chosenFood.author_name}):
-                  </p>
-                  <h2 className="mt-1 font-display text-4xl font-black text-gradient">
-                    🍲 {chosenFood.text}
-                  </h2>
-                  <p className="mt-4 text-sm text-cream-soft">
-                    Agora é só cozinhar! 👨‍🍳 Quando ficar pronto, mande a foto.
-                  </p>
-                </div>
+            <button
+              className="btn lg yellow mt8"
+              onClick={() => { setPickConfirmed(true); fireConfetti(30); }}
+            >
+              BORA COZINHAR 🔥
+            </button>
+          </section>
+        )}
 
-                {/* A outra opção — dá pra trocar com confirmação */}
-                {otherFood && (
-                  <div className="rounded-[1.5rem] border border-line bg-card/50 p-4">
-                    <p className="text-xs font-bold tracking-wide text-muted uppercase">
-                      A outra opção
-                    </p>
-                    <div className="mt-2 flex items-center justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="truncate font-display text-xl font-bold text-cream">
-                          🍛 {otherFood.text}
-                        </p>
-                        <p className="text-xs text-faint">
-                          por {otherFood.author_name}
-                        </p>
-                      </div>
-                      {!confirmSwap && (
-                        <button
-                          onClick={() => setConfirmSwap(true)}
-                          disabled={busy}
-                          className="shrink-0 rounded-xl border border-saffron/40 bg-saffron/10 px-4 py-2.5 text-sm font-bold text-saffron-bright transition active:scale-95 disabled:opacity-50"
-                        >
-                          Trocar
-                        </button>
-                      )}
-                    </div>
+        {/* ── 6. COZINHAR + FOTO ─────────────────────────────── */}
+        {scene === "cook" && chosenFood && country && (
+          <CookScreen
+            country={country}
+            chosenFood={chosenFood}
+            otherFood={otherFood}
+            busy={busy}
+            swapConfirm={swapConfirm}
+            onOpenSwap={() => setSwapConfirm(true)}
+            onCloseSwap={() => setSwapConfirm(false)}
+            onSwap={handleSwap}
+            onUpload={handleUpload}
+          />
+        )}
 
-                    {confirmSwap && (
-                      <div className="mt-3 rounded-xl border border-saffron/30 bg-coal/50 p-3 [animation:var(--animate-pop)]">
-                        <p className="text-sm text-cream-soft">
-                          Trocar pra{" "}
-                          <strong className="text-saffron-bright">
-                            {otherFood.text}
-                          </strong>
-                          ? Isso muda o prato da rodada pros dois.
-                        </p>
-                        <div className="mt-3 flex gap-2">
-                          <button
-                            onClick={() => setConfirmSwap(false)}
-                            disabled={busy}
-                            className="flex-1 rounded-xl border border-line py-2.5 text-sm font-bold text-muted transition active:scale-95"
-                          >
-                            Cancelar
-                          </button>
-                          <button
-                            onClick={() => handleSwap(otherFood.id)}
-                            disabled={busy}
-                            className="flex-1 rounded-xl bg-gradient-to-r from-saffron-bright to-paprika py-2.5 text-sm font-black text-ink transition active:scale-95 disabled:opacity-60"
-                          >
-                            {busy ? "Trocando…" : "Confirmar troca"}
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                <label className="flex cursor-pointer flex-col items-center gap-2 rounded-[1.75rem] border-2 border-dashed border-saffron/40 bg-saffron/10 p-8 text-center transition active:scale-[0.98]">
-                  <span className="text-4xl">📸</span>
-                  <span className="font-black text-saffron-bright">
-                    {busy ? "Enviando…" : "Enviar foto do prato pronto"}
-                  </span>
-                  <span className="text-xs text-muted">
-                    Ela vai pro quadro de fotos pra galera avaliar.
-                  </span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    capture="environment"
-                    onChange={handlePhoto}
-                    disabled={busy}
-                    className="hidden"
-                  />
-                </label>
-              </div>
-            )}
-          </div>
+        {/* ── 7. GALERIA ─────────────────────────────────────── */}
+        {scene === "gallery" && (
+          <section className="screen active">
+            <div className="row between wrap">
+              <h2 className="neon-yellow">⭐ QUADRO DE FOTOS</h2>
+              <span className="badge">estilo iFood</span>
+            </div>
+            <Gallery supabase={supabase} userId={userId} userName={userName} />
+          </section>
         )}
       </main>
 
-      {/* ---------- Navegação inferior ---------- */}
-      <nav className="fixed inset-x-0 bottom-0 z-20 mx-auto max-w-lg px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
-        <div className="glass flex items-center gap-1 rounded-2xl p-1.5 shadow-[var(--shadow-warm)]">
-          <TabButton
-            active={tab === "jogar"}
-            onClick={() => setTab("jogar")}
-            icon="🍳"
-            label="Jogar"
-          />
-          <TabButton
-            active={tab === "galeria"}
-            onClick={() => setTab("galeria")}
-            icon="🖼️"
-            label="Galeria"
-          />
-        </div>
+      {/* ── Bottom nav ────────────────────────────────────────── */}
+      <nav className="nav">
+        {(
+          [
+            { id: "lobby",   emoji: "🚪", label: "SALA"     },
+            { id: "draw",    emoji: "🎲", label: "SORTEIO"  },
+            { id: "write",   emoji: "✍️",  label: "PRATO"    },
+            { id: "pick",    emoji: "🍴", label: "ESCOLHA"  },
+            { id: "cook",    emoji: "📸", label: "COZINHAR" },
+            { id: "gallery", emoji: "⭐", label: "GALERIA"  },
+          ] as const
+        ).map(({ id, emoji, label }) => (
+          <button
+            key={id}
+            className={`nav-btn ${scene === id ? "on" : ""}`}
+            onClick={() => setShowGallery(id === "gallery")}
+          >
+            <span className="n">{emoji}</span>
+            {label}
+          </button>
+        ))}
       </nav>
-    </div>
+    </>
   );
 }
 
-function TabButton({
-  active,
-  onClick,
-  icon,
-  label,
-}: {
-  active: boolean;
-  onClick: () => void;
-  icon: string;
-  label: string;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`flex flex-1 items-center justify-center gap-2 rounded-xl py-3 text-sm font-bold transition active:scale-95 ${
-        active
-          ? "bg-gradient-to-r from-saffron-bright to-paprika text-ink shadow"
-          : "text-muted"
-      }`}
-    >
-      <span className="text-base">{icon}</span>
-      {label}
-    </button>
-  );
-}
-
-function ResultCard({
-  country,
-  food,
-  photo,
-  onSeeGallery,
+// ─── Cook Screen ─────────────────────────────────────────────────────────────
+function CookScreen({
+  country, chosenFood, otherFood, busy,
+  swapConfirm, onOpenSwap, onCloseSwap, onSwap, onUpload,
 }: {
   country: Country;
-  food: Food;
-  photo: string | null;
-  onSeeGallery: () => void;
+  chosenFood: Food;
+  otherFood: Food | null;
+  busy: boolean;
+  swapConfirm: boolean;
+  onOpenSwap: () => void;
+  onCloseSwap: () => void;
+  onSwap: (id: string) => void;
+  onUpload: (file: File) => void;
 }) {
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [dragOver, setDragOver] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  function readFile(file: File) {
+    setSelectedFile(file);
+    const r = new FileReader();
+    r.onload = () => setPreview(r.result as string);
+    r.readAsDataURL(file);
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault(); setDragOver(false);
+    const f = e.dataTransfer.files[0];
+    if (f) readFile(f);
+  }
+
+  function reset() {
+    setSelectedFile(null);
+    setPreview(null);
+    if (fileRef.current) fileRef.current.value = "";
+  }
+
   return (
-    <div className="overflow-hidden rounded-[1.75rem] border border-line bg-card shadow-[var(--shadow-warm)] [animation:var(--animate-rise)]">
-      {photo && (
-        <div className="relative aspect-[4/3] overflow-hidden">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={photo}
-            alt={food.text}
-            className="h-full w-full object-cover"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-coal to-transparent" />
-          <span className="absolute top-3 left-3 rounded-full bg-pitch px-3 py-1 text-xs font-black text-ink">
-            RODADA CONCLUÍDA 🎉
-          </span>
+    <section className="screen active">
+      <div className="row between wrap">
+        <h2 className="neon">📸 COZINHE &amp; FOTOGRAFE</h2>
+        <span className="badge"><span>{country.flag}</span></span>
+      </div>
+      <p className="help">
+        Quando o prato{" "}
+        <strong style={{ color: "var(--ink)" }}>{chosenFood.text}</strong>{" "}
+        estiver pronto, mande a foto.
+      </p>
+
+      {/* Swap option */}
+      {otherFood && !swapConfirm && (
+        <div className="card tight">
+          <div className="row between">
+            <div>
+              <div className="card-title">OUTRA OPÇÃO</div>
+              <div style={{ fontFamily: "var(--display)", fontSize: 13 }}>{otherFood.text}</div>
+              <div className="help">por {otherFood.author_name}</div>
+            </div>
+            <button className="btn ghost sm" onClick={onOpenSwap} disabled={busy}>TROCAR ⇄</button>
+          </div>
         </div>
       )}
-      <div className="p-5 text-center">
-        <p className="text-4xl">{country.flag}</p>
-        <h3 className="font-display text-2xl font-black text-cream">
-          {country.name_pt}
-        </h3>
-        <p className="mt-1 font-display text-xl font-bold text-gradient">
-          {food.text}
-        </p>
-        <p className="text-xs text-muted">por {food.author_name}</p>
-        <button
-          onClick={onSeeGallery}
-          className="mt-4 w-full rounded-2xl border border-saffron/40 bg-saffron/10 py-3 text-sm font-bold text-saffron-bright transition active:scale-95"
+
+      {swapConfirm && otherFood && (
+        <div className="modal-overlay" onClick={onCloseSwap}>
+          <div className="card bolts accent modal-box" onClick={(e) => e.stopPropagation()}>
+            <div className="card-title">TROCAR PRATO?</div>
+            <p>Trocar para <strong style={{ color: "var(--accent)" }}>"{otherFood.text}"</strong>?</p>
+            <div className="row gap20 mt20" style={{ justifyContent: "center" }}>
+              <button className="btn ghost" onClick={onCloseSwap}>NÃO</button>
+              <button className="btn green" onClick={() => onSwap(otherFood.id)} disabled={busy}>
+                SIM, TROCAR
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Dropzone / preview */}
+      {!preview ? (
+        <div
+          className={`dropzone${dragOver ? " drag" : ""}`}
+          onClick={() => fileRef.current?.click()}
+          onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+          onDragEnter={(e) => { e.preventDefault(); setDragOver(true); }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={handleDrop}
         >
-          ⭐ Avaliar na galeria
-        </button>
-      </div>
-    </div>
+          <div className="big">🍳</div>
+          <p className="pix" style={{ fontSize: 11 }}>TOQUE PARA ENVIAR</p>
+          <p className="help">ou arraste a foto aqui</p>
+          <input
+            ref={fileRef}
+            type="file" accept="image/*" capture="environment"
+            className="hidden"
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) readFile(f); }}
+          />
+        </div>
+      ) : (
+        <div>
+          <div className="preview-wrap">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={preview} alt="Pré-visualização" />
+          </div>
+          <button className="btn ghost sm mt8" onClick={reset}>TIRAR OUTRA ↺</button>
+        </div>
+      )}
+
+      <button
+        className="btn lg green block mt8"
+        disabled={!selectedFile || busy}
+        onClick={() => { if (selectedFile) onUpload(selectedFile); }}
+      >
+        {busy ? "ENVIANDO…" : "ENVIAR PRA GALERIA ▸"}
+      </button>
+    </section>
+  );
+}
+
+// ─── Theme Toggle ─────────────────────────────────────────────────────────────
+function ThemeToggle() {
+  function toggle() {
+    const html = document.documentElement;
+    const next = html.getAttribute("data-theme") === "light" ? "dark" : "light";
+    html.setAttribute("data-theme", next);
+    localStorage.setItem("cc-theme", next);
+  }
+  return (
+    <button className="toggle" onClick={toggle} aria-label="Alternar tema">
+      <span>🌙</span>
+    </button>
   );
 }
