@@ -26,3 +26,26 @@ export type Food = {
   text: string;
   created_at: string;
 };
+
+export type Review = {
+  id: string;
+  match_id: string;
+  user_id: string;
+  author_name: string;
+  rating: number;
+  comment: string | null;
+  created_at: string;
+};
+
+// Um prato concluído com tudo que a galeria precisa exibir.
+export type GalleryDish = {
+  match_id: string;
+  photo_url: string;
+  created_at: string;
+  country_name: string;
+  country_flag: string;
+  confederation: string;
+  dish: string;
+  cook: string;
+  reviews: Review[];
+};

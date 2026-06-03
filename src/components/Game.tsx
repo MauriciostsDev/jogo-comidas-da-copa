@@ -3,21 +3,18 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Country, Food, Match } from "@/lib/types";
-import {
-  attachPhoto,
-  chooseFood,
-  drawCountry,
-  resetAll,
-  submitFood,
-} from "@/app/actions";
+import { attachPhoto, chooseFood, drawCountry, submitFood } from "@/app/actions";
+import Gallery from "./Gallery";
 
 type Props = { userId: string; userName: string };
 
 const TOTAL_PAISES = 48;
+const RODADA_SEGUNDOS = 7 * 60;
 
 export default function Game({ userId, userName }: Props) {
   const [supabase] = useState(() => createClient());
 
+  const [tab, setTab] = useState<"jogar" | "galeria">("jogar");
   const [match, setMatch] = useState<Match | null>(null);
   const [country, setCountry] = useState<Country | null>(null);
   const [foods, setFoods] = useState<Food[]>([]);
@@ -142,6 +139,7 @@ export default function Game({ userId, userName }: Props) {
   const deadline = match ? new Date(match.writing_deadline).getTime() : 0;
   const secondsLeft = Math.max(0, Math.floor((deadline - now) / 1000));
   const timeUp = match?.status === "writing" && secondsLeft <= 0;
+  const progress = Math.max(0, Math.min(1, secondsLeft / RODADA_SEGUNDOS));
 
   // ---------- Sorteia o prato automaticamente ----------
   useEffect(() => {
@@ -196,184 +194,289 @@ export default function Game({ userId, userName }: Props) {
     else refresh();
   }
 
-  async function handleReset() {
-    if (!confirm("Recomeçar tudo? Isso apaga a partida atual e zera os sorteios."))
-      return;
-    setBusy(true);
-    await resetAll();
-    setBusy(false);
-    choosingTriggered.current = null;
-    refresh();
-  }
-
   const status = match?.status ?? null;
   const canDraw = !match || status === "done";
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-green-700 via-green-800 to-yellow-700 px-4 py-6 text-white">
-      <div className="mx-auto max-w-xl">
-        {/* Cabeçalho */}
-        <header className="mb-6 flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-black">🍽️⚽ Comidas da Copa</h1>
-            <p className="text-xs text-green-100">
-              Olá, {userName} · {drawnCount}/{TOTAL_PAISES} países sorteados
-            </p>
+    <div className="relative z-10 mx-auto flex min-h-dvh max-w-lg flex-col px-4 pb-28 pt-4">
+      {/* ---------- Cabeçalho ---------- */}
+      <header className="flex items-center justify-between">
+        <div>
+          <h1 className="font-display text-2xl font-black tracking-tight">
+            <span className="text-gradient">Comidas</span>{" "}
+            <span className="text-cream">da Copa</span>
+          </h1>
+          <p className="text-xs text-muted">Olá, {userName} 👋</p>
+        </div>
+        <form action="/auth/signout" method="post">
+          <button className="rounded-full border border-line bg-card/60 px-4 py-2 text-xs font-semibold text-muted transition active:scale-95">
+            Sair
+          </button>
+        </form>
+      </header>
+
+      {/* Progresso de países sorteados */}
+      <div className="mt-4 flex items-center gap-3 rounded-2xl border border-line bg-card/50 px-4 py-2.5">
+        <span className="text-lg">🌍</span>
+        <div className="flex-1">
+          <div className="flex justify-between text-[0.7rem] font-semibold text-muted">
+            <span>Seleções sorteadas</span>
+            <span className="font-mono text-cream">
+              {drawnCount}/{TOTAL_PAISES}
+            </span>
           </div>
-          <div className="flex gap-2">
-            <button
-              onClick={handleReset}
-              className="rounded-lg bg-white/10 px-2 py-1 text-xs hover:bg-white/20"
-              title="Recomeçar"
-            >
-              ↺
-            </button>
-            <form action="/auth/signout" method="post">
-              <button className="rounded-lg bg-white/10 px-2 py-1 text-xs hover:bg-white/20">
-                Sair
-              </button>
-            </form>
+          <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-coal">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-saffron to-paprika transition-all duration-700"
+              style={{ width: `${(drawnCount / TOTAL_PAISES) * 100}%` }}
+            />
           </div>
-        </header>
+        </div>
+      </div>
 
-        {error && (
-          <p className="mb-4 rounded-xl bg-red-500/90 px-4 py-2 text-sm">
-            {error}
-          </p>
-        )}
+      {error && (
+        <p className="mt-4 rounded-2xl border border-paprika/40 bg-paprika/15 px-4 py-2.5 text-sm text-paprika [animation:var(--animate-pop)]">
+          {error}
+        </p>
+      )}
 
-        {/* ---------- Resultado da rodada anterior ---------- */}
-        {status === "done" && country && chosenFood && (
-          <ResultCard
-            country={country}
-            food={chosenFood}
-            photo={match?.photo_url ?? null}
-          />
-        )}
-
-        {/* ---------- Sortear país ---------- */}
-        {canDraw && (
-          <div className="rounded-3xl bg-white/10 p-8 text-center backdrop-blur">
-            <div className="text-6xl">🌍</div>
-            <h2 className="mt-3 text-lg font-bold">
-              {status === "done" ? "Próxima rodada!" : "Bora jogar?"}
-            </h2>
-            <p className="mt-1 text-sm text-green-100">
-              Clique para sortear um país. Vocês terão 7 minutos para escrever um
-              prato típico cada um.
-            </p>
-            <button
-              onClick={handleDraw}
-              disabled={busy || drawnCount >= TOTAL_PAISES}
-              className="mt-5 rounded-2xl bg-yellow-400 px-8 py-4 text-lg font-black text-green-900 shadow-lg transition hover:bg-yellow-300 disabled:opacity-60"
-            >
-              {drawnCount >= TOTAL_PAISES
-                ? "Todos os países já saíram!"
-                : busy
-                  ? "Sorteando..."
-                  : "🎲 Sortear país"}
-            </button>
-          </div>
-        )}
-
-        {/* ---------- Fase: escrever o prato ---------- */}
-        {status === "writing" && country && (
+      {/* ---------- Conteúdo ---------- */}
+      <main className="mt-5 flex-1">
+        {tab === "galeria" ? (
+          <Gallery supabase={supabase} userId={userId} userName={userName} />
+        ) : (
           <div className="space-y-4">
-            <div className="rounded-3xl bg-white/10 p-6 text-center backdrop-blur">
-              <div className="text-7xl">{country.flag}</div>
-              <h2 className="mt-2 text-2xl font-black">{country.name_pt}</h2>
-              <p className="text-xs text-green-100">{country.confederation}</p>
-              <div
-                className={`mt-3 inline-block rounded-full px-4 py-1 text-2xl font-black tabular-nums ${
-                  secondsLeft <= 60 ? "bg-red-500" : "bg-black/30"
-                }`}
-              >
-                ⏱️ {Math.floor(secondsLeft / 60)}:
-                {String(secondsLeft % 60).padStart(2, "0")}
-              </div>
-              <p className="mt-2 text-sm text-green-100">
-                Escreva um prato típico desse país!
-              </p>
-            </div>
+            {/* Resultado da rodada concluída */}
+            {status === "done" && country && chosenFood && (
+              <ResultCard
+                country={country}
+                food={chosenFood}
+                photo={match?.photo_url ?? null}
+                onSeeGallery={() => setTab("galeria")}
+              />
+            )}
 
-            {/* Meu campo */}
-            <div className="rounded-2xl bg-white p-4 text-gray-900">
-              <p className="mb-1 text-xs font-bold text-green-700">
-                Você {myFood && "✓ enviado"}
-              </p>
-              <div className="flex gap-2">
-                <input
-                  value={myText}
-                  onChange={(e) => {
-                    setMyText(e.target.value);
-                    broadcastTyping(e.target.value);
-                  }}
-                  placeholder="Ex.: Feijoada, Tacos, Sushi..."
-                  className="w-full rounded-xl border border-gray-300 px-3 py-2 outline-none focus:border-green-600"
-                />
+            {/* Sortear país */}
+            {canDraw && (
+              <div className="glass relative overflow-hidden rounded-[1.75rem] p-8 text-center [animation:var(--animate-rise)]">
+                <div className="pointer-events-none absolute -top-8 -right-6 text-[8rem] opacity-10 [animation:var(--animate-float)]">
+                  ⚽
+                </div>
+                <div className="text-7xl [animation:var(--animate-float)]">
+                  🌍
+                </div>
+                <h2 className="mt-4 font-display text-3xl font-black text-cream">
+                  {status === "done" ? "Bora pra próxima?" : "Hora de jogar!"}
+                </h2>
+                <p className="mx-auto mt-2 max-w-xs text-sm text-muted">
+                  Sorteie uma seleção. Vocês terão{" "}
+                  <strong className="text-cream">7 minutos</strong> pra escrever
+                  um prato típico cada um.
+                </p>
                 <button
-                  onClick={handleSubmitFood}
-                  disabled={busy || !myText.trim()}
-                  className="rounded-xl bg-green-700 px-4 font-bold text-white hover:bg-green-800 disabled:opacity-50"
+                  onClick={handleDraw}
+                  disabled={busy || drawnCount >= TOTAL_PAISES}
+                  className="mt-6 w-full rounded-2xl bg-gradient-to-r from-saffron-bright to-paprika py-4 text-lg font-black text-ink shadow-[var(--shadow-glow)] transition active:scale-[0.98] disabled:opacity-60"
                 >
-                  {myFood ? "Salvar" : "Enviar"}
+                  {drawnCount >= TOTAL_PAISES
+                    ? "Acabaram as seleções! 🏁"
+                    : busy
+                      ? "Sorteando…"
+                      : "🎲 Sortear seleção"}
                 </button>
               </div>
-            </div>
+            )}
 
-            {/* Campo da dupla */}
-            <div className="rounded-2xl bg-white/15 p-4 backdrop-blur">
-              <p className="mb-1 text-xs font-bold text-yellow-200">
-                Sua dupla {partnerFood && "✓ enviou"}
-              </p>
-              <p className="min-h-[1.5rem] text-lg">
-                {partnerFood
-                  ? `🍲 ${partnerFood.text}`
-                  : partnerTyping
-                    ? `✍️ ${partnerTyping}`
-                    : "aguardando..."}
-              </p>
-            </div>
+            {/* Fase: escrever o prato */}
+            {status === "writing" && country && (
+              <div className="space-y-4 [animation:var(--animate-rise)]">
+                <div className="overflow-hidden rounded-[1.75rem] border border-line bg-gradient-to-b from-card-2 to-card p-6 text-center shadow-[var(--shadow-warm)]">
+                  <p className="text-[0.7rem] font-bold tracking-[0.2em] text-saffron uppercase">
+                    {country.confederation}
+                  </p>
+                  <div className="mt-2 text-7xl [animation:var(--animate-pop)]">
+                    {country.flag}
+                  </div>
+                  <h2 className="mt-1 font-display text-4xl font-black text-cream">
+                    {country.name_pt}
+                  </h2>
 
-            {(bothSubmitted || timeUp) && (
-              <p className="animate-pulse text-center font-bold text-yellow-200">
-                🎲 Sorteando qual prato vocês vão fazer...
-              </p>
+                  {/* Cronômetro */}
+                  <div className="mt-5">
+                    <div
+                      className={`font-mono text-5xl font-black tabular-nums ${
+                        secondsLeft <= 60
+                          ? "text-paprika [animation:var(--animate-pop)]"
+                          : "text-cream"
+                      }`}
+                    >
+                      {Math.floor(secondsLeft / 60)}:
+                      {String(secondsLeft % 60).padStart(2, "0")}
+                    </div>
+                    <div className="mx-auto mt-2 h-1.5 max-w-[12rem] overflow-hidden rounded-full bg-coal">
+                      <div
+                        className={`h-full rounded-full transition-all duration-1000 ${
+                          secondsLeft <= 60
+                            ? "bg-paprika"
+                            : "bg-gradient-to-r from-saffron to-paprika"
+                        }`}
+                        style={{ width: `${progress * 100}%` }}
+                      />
+                    </div>
+                    <p className="mt-3 text-sm text-muted">
+                      Qual prato típico representa esse país? 🍴
+                    </p>
+                  </div>
+                </div>
+
+                {/* Meu campo */}
+                <div className="rounded-[1.5rem] border border-line bg-card p-4">
+                  <div className="mb-2 flex items-center justify-between">
+                    <p className="text-xs font-bold tracking-wide text-saffron-bright uppercase">
+                      Seu prato
+                    </p>
+                    {myFood && (
+                      <span className="rounded-full bg-pitch/15 px-2 py-0.5 text-[0.65rem] font-bold text-pitch">
+                        ✓ enviado
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      value={myText}
+                      onChange={(e) => {
+                        setMyText(e.target.value);
+                        broadcastTyping(e.target.value);
+                      }}
+                      placeholder="Ex.: Feijoada, Tacos, Sushi…"
+                      className="w-full rounded-xl border border-line bg-coal/60 px-3.5 py-3 text-cream placeholder:text-faint outline-none focus:border-saffron"
+                    />
+                    <button
+                      onClick={handleSubmitFood}
+                      disabled={busy || !myText.trim()}
+                      className="shrink-0 rounded-xl bg-saffron px-5 font-black text-ink transition active:scale-95 disabled:opacity-50"
+                    >
+                      {myFood ? "Salvar" : "Enviar"}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Campo da dupla */}
+                <div className="rounded-[1.5rem] border border-line bg-card/40 p-4">
+                  <div className="mb-1 flex items-center justify-between">
+                    <p className="text-xs font-bold tracking-wide text-muted uppercase">
+                      Sua dupla
+                    </p>
+                    {partnerFood && (
+                      <span className="rounded-full bg-pitch/15 px-2 py-0.5 text-[0.65rem] font-bold text-pitch">
+                        ✓ enviou
+                      </span>
+                    )}
+                  </div>
+                  <p className="min-h-[1.75rem] text-lg text-cream">
+                    {partnerFood ? (
+                      <>🍲 {partnerFood.text}</>
+                    ) : partnerTyping ? (
+                      <span className="text-muted italic">
+                        ✍️ {partnerTyping}
+                      </span>
+                    ) : (
+                      <span className="text-faint">aguardando…</span>
+                    )}
+                  </p>
+                </div>
+
+                {(bothSubmitted || timeUp) && (
+                  <p className="text-center font-bold text-saffron-bright [animation:var(--animate-pop)]">
+                    🎲 Sorteando qual prato vocês vão fazer…
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Fase: cozinhar */}
+            {status === "cooking" && country && chosenFood && (
+              <div className="space-y-4 [animation:var(--animate-rise)]">
+                <div className="overflow-hidden rounded-[1.75rem] border border-line bg-gradient-to-b from-card-2 to-card p-6 text-center shadow-[var(--shadow-warm)]">
+                  <div className="text-6xl">{country.flag}</div>
+                  <p className="mt-3 text-xs text-muted">
+                    O prato sorteado foi (escrito por {chosenFood.author_name}):
+                  </p>
+                  <h2 className="mt-1 font-display text-4xl font-black text-gradient">
+                    {chosenFood.text}
+                  </h2>
+                  <p className="mt-4 text-sm text-cream-soft">
+                    Agora é só cozinhar! 👨‍🍳 Quando ficar pronto, mande a foto.
+                  </p>
+                </div>
+
+                <label className="flex cursor-pointer flex-col items-center gap-2 rounded-[1.75rem] border-2 border-dashed border-saffron/40 bg-saffron/10 p-8 text-center transition active:scale-[0.98]">
+                  <span className="text-4xl">📸</span>
+                  <span className="font-black text-saffron-bright">
+                    {busy ? "Enviando…" : "Enviar foto do prato pronto"}
+                  </span>
+                  <span className="text-xs text-muted">
+                    Ela vai pro quadro de fotos pra galera avaliar.
+                  </span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={handlePhoto}
+                    disabled={busy}
+                    className="hidden"
+                  />
+                </label>
+              </div>
             )}
           </div>
         )}
+      </main>
 
-        {/* ---------- Fase: cozinhar ---------- */}
-        {status === "cooking" && country && chosenFood && (
-          <div className="space-y-4">
-            <div className="rounded-3xl bg-white/10 p-6 text-center backdrop-blur">
-              <div className="text-6xl">{country.flag}</div>
-              <p className="mt-2 text-sm text-green-100">
-                O prato sorteado foi (escrito por {chosenFood.author_name}):
-              </p>
-              <h2 className="mt-1 text-3xl font-black text-yellow-300">
-                🍲 {chosenFood.text}
-              </h2>
-              <p className="mt-3 text-sm">
-                Agora é só cozinhar! 👨‍🍳 Quando ficar pronto, envie uma foto:
-              </p>
-            </div>
+      {/* ---------- Navegação inferior ---------- */}
+      <nav className="fixed inset-x-0 bottom-0 z-20 mx-auto max-w-lg px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+        <div className="glass flex items-center gap-1 rounded-2xl p-1.5 shadow-[var(--shadow-warm)]">
+          <TabButton
+            active={tab === "jogar"}
+            onClick={() => setTab("jogar")}
+            icon="🍳"
+            label="Jogar"
+          />
+          <TabButton
+            active={tab === "galeria"}
+            onClick={() => setTab("galeria")}
+            icon="🖼️"
+            label="Galeria"
+          />
+        </div>
+      </nav>
+    </div>
+  );
+}
 
-            <label className="block cursor-pointer rounded-2xl bg-yellow-400 p-6 text-center font-black text-green-900 hover:bg-yellow-300">
-              {busy ? "Enviando..." : "📸 Enviar foto do prato pronto"}
-              <input
-                type="file"
-                accept="image/*"
-                capture="environment"
-                onChange={handlePhoto}
-                disabled={busy}
-                className="hidden"
-              />
-            </label>
-          </div>
-        )}
-      </div>
-    </main>
+function TabButton({
+  active,
+  onClick,
+  icon,
+  label,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: string;
+  label: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex flex-1 items-center justify-center gap-2 rounded-xl py-3 text-sm font-bold transition active:scale-95 ${
+        active
+          ? "bg-gradient-to-r from-saffron-bright to-paprika text-ink shadow"
+          : "text-muted"
+      }`}
+    >
+      <span className="text-base">{icon}</span>
+      {label}
+    </button>
   );
 }
 
@@ -381,23 +484,44 @@ function ResultCard({
   country,
   food,
   photo,
+  onSeeGallery,
 }: {
   country: Country;
   food: Food;
   photo: string | null;
+  onSeeGallery: () => void;
 }) {
   return (
-    <div className="mb-6 overflow-hidden rounded-3xl bg-white text-gray-900 shadow-xl">
+    <div className="overflow-hidden rounded-[1.75rem] border border-line bg-card shadow-[var(--shadow-warm)] [animation:var(--animate-rise)]">
       {photo && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={photo} alt={food.text} className="h-56 w-full object-cover" />
+        <div className="relative aspect-[4/3] overflow-hidden">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={photo}
+            alt={food.text}
+            className="h-full w-full object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-coal to-transparent" />
+          <span className="absolute top-3 left-3 rounded-full bg-pitch px-3 py-1 text-xs font-black text-ink">
+            RODADA CONCLUÍDA 🎉
+          </span>
+        </div>
       )}
       <div className="p-5 text-center">
-        <p className="text-xs font-bold text-green-700">RODADA CONCLUÍDA 🎉</p>
-        <p className="mt-1 text-4xl">{country.flag}</p>
-        <h3 className="text-lg font-black">{country.name_pt}</h3>
-        <p className="mt-1 text-xl font-bold text-green-800">🍲 {food.text}</p>
-        <p className="text-xs text-gray-500">por {food.author_name}</p>
+        <p className="text-4xl">{country.flag}</p>
+        <h3 className="font-display text-2xl font-black text-cream">
+          {country.name_pt}
+        </h3>
+        <p className="mt-1 font-display text-xl font-bold text-gradient">
+          {food.text}
+        </p>
+        <p className="text-xs text-muted">por {food.author_name}</p>
+        <button
+          onClick={onSeeGallery}
+          className="mt-4 w-full rounded-2xl border border-saffron/40 bg-saffron/10 py-3 text-sm font-bold text-saffron-bright transition active:scale-95"
+        >
+          ⭐ Avaliar na galeria
+        </button>
       </div>
     </div>
   );

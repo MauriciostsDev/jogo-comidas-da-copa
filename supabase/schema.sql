@@ -41,6 +41,18 @@ alter table matches
   add constraint matches_chosen_food_id_fkey
   foreign key (chosen_food_id) references foods(id) on delete set null;
 
+-- Avaliações dos pratos prontos (estrelas de 1 a 5 + comentário, estilo iFood).
+create table if not exists reviews (
+  id          uuid primary key default gen_random_uuid(),
+  match_id    uuid not null references matches(id) on delete cascade,
+  user_id     uuid not null references auth.users(id) on delete cascade,
+  author_name text not null,
+  rating      int  not null check (rating between 1 and 5),
+  comment     text,
+  created_at  timestamptz not null default now(),
+  unique (match_id, user_id) -- cada pessoa avalia um prato uma vez (editável)
+);
+
 -- ---------- Row Level Security ----------
 -- Leitura liberada para usuários logados (o Realtime depende do SELECT).
 -- Escrita só acontece pelas funções abaixo (security definer), então
@@ -49,6 +61,7 @@ alter table matches
 alter table countries enable row level security;
 alter table matches   enable row level security;
 alter table foods     enable row level security;
+alter table reviews   enable row level security;
 
 drop policy if exists "read countries" on countries;
 create policy "read countries" on countries
@@ -60,6 +73,10 @@ create policy "read matches" on matches
 
 drop policy if exists "read foods" on foods;
 create policy "read foods" on foods
+  for select to authenticated using (true);
+
+drop policy if exists "read reviews" on reviews;
+create policy "read reviews" on reviews
   for select to authenticated using (true);
 
 -- ---------- Funções (atômicas e seguras) ----------
@@ -170,24 +187,40 @@ begin
 end;
 $$;
 
--- Recomeça tudo (zera sorteios, apaga rodadas) — útil para testar.
-create or replace function reset_all()
+-- Salva (ou atualiza) a avaliação de um prato pronto: estrelas (1–5) + comentário.
+create or replace function submit_review(
+  p_match_id uuid,
+  p_rating   int,
+  p_comment  text,
+  p_author   text
+)
 returns void
 language plpgsql
 security definer
 set search_path = public
 as $$
 begin
-  delete from foods;
-  delete from matches;
-  update countries set drawn = false;
+  if auth.uid() is null then
+    raise exception 'Precisa estar logado.';
+  end if;
+  if p_rating < 1 or p_rating > 5 then
+    raise exception 'A nota precisa ser de 1 a 5 estrelas.';
+  end if;
+  insert into reviews (match_id, user_id, author_name, rating, comment)
+    values (p_match_id, auth.uid(), p_author, p_rating, nullif(btrim(p_comment), ''))
+  on conflict (match_id, user_id)
+    do update set rating = excluded.rating,
+                  comment = excluded.comment,
+                  author_name = excluded.author_name,
+                  created_at = now();
 end;
 $$;
 
 -- ---------- Realtime ----------
--- Publica matches e foods para a sincronização ao vivo.
+-- Publica matches, foods e reviews para a sincronização ao vivo.
 alter publication supabase_realtime add table matches;
 alter publication supabase_realtime add table foods;
+alter publication supabase_realtime add table reviews;
 
 -- ---------- Storage (fotos dos pratos) ----------
 insert into storage.buckets (id, name, public)

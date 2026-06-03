@@ -1,26 +1,181 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* =============================================================
+   Comidas da Copa — sistema visual "Cozinha de Campeonato"
+   Tema escuro, quente e apetitoso. Mobile-first.
+   ============================================================= */
+
+@theme {
+  /* Base escura espresso */
+  --color-ink: #17110b;
+  --color-ink-2: #1f1810;
+  --color-coal: #120d08;
+
+  /* Superfícies / cartões */
+  --color-card: #241c13;
+  --color-card-2: #2c2218;
+  --color-line: #3a2d1f;
+
+  /* Texto */
+  --color-cream: #f7eedf;
+  --color-cream-soft: #e9dcc7;
+  --color-muted: #b29b7d;
+  --color-faint: #8a755b;
+
+  /* Acentos */
+  --color-saffron: #ffb02e;
+  --color-saffron-bright: #ffcb52;
+  --color-paprika: #ff5b2e;
+  --color-paprika-deep: #e23d18;
+  --color-pitch: #2fd06f;
+  --color-gold: #ffc93c;
+
+  /* Tipografia */
+  --font-display: var(--ff-display), Georgia, "Times New Roman", serif;
+  --font-sans: var(--ff-body), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--ff-mono), ui-monospace, monospace;
+
+  /* Sombras quentes */
+  --shadow-warm: 0 18px 40px -16px rgba(0, 0, 0, 0.7);
+  --shadow-glow: 0 0 0 1px rgba(255, 176, 46, 0.25),
+    0 20px 50px -20px rgba(255, 145, 40, 0.45);
+
+  /* Animações */
+  --animate-rise: rise 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-pop: pop 0.45s cubic-bezier(0.18, 1.4, 0.4, 1) both;
+  --animate-shimmer: shimmer 2.4s linear infinite;
+  --animate-float: float 6s ease-in-out infinite;
+  --animate-ring: ring 1.4s ease-out infinite;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: scale(0.86);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes shimmer {
+  to {
+    background-position: 200% center;
+  }
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-3deg);
+  }
+  50% {
+    transform: translateY(-10px) rotate(3deg);
+  }
+}
+
+@keyframes ring {
+  0% {
+    transform: scale(1);
+    opacity: 0.55;
+  }
+  100% {
+    transform: scale(1.7);
+    opacity: 0;
+  }
+}
+
+html {
+  -webkit-tap-highlight-color: transparent;
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  color: var(--color-cream);
+  font-family: var(--font-sans);
+  background-color: var(--color-coal);
+  /* Brilho quente de "fogão" no topo + textura sutil */
+  background-image:
+    radial-gradient(
+      120% 80% at 50% -10%,
+      rgba(255, 138, 40, 0.22),
+      transparent 60%
+    ),
+    radial-gradient(
+      90% 60% at 90% 8%,
+      rgba(255, 91, 46, 0.14),
+      transparent 55%
+    ),
+    radial-gradient(
+      70% 50% at 5% 30%,
+      rgba(47, 208, 111, 0.08),
+      transparent 60%
+    );
+  background-attachment: fixed;
+}
+
+/* Grão de filme sutil sobre tudo */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.05;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 220 220' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* Título com gradiente saffron→paprika */
+.text-gradient {
+  background: linear-gradient(
+    100deg,
+    var(--color-saffron-bright),
+    var(--color-paprika) 75%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Vidro fosco quente */
+.glass {
+  background: linear-gradient(
+    160deg,
+    rgba(255, 240, 220, 0.07),
+    rgba(255, 240, 220, 0.025)
+  );
+  border: 1px solid rgba(255, 230, 200, 0.1);
+  backdrop-filter: blur(14px);
+}
+
+/* Esconde a barra de rolagem mantendo o scroll */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Skeleton shimmer */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--color-card) 25%,
+    var(--color-card-2) 50%,
+    var(--color-card) 75%
+  );
+  background-size: 200% 100%;
+  animation: var(--animate-shimmer);
 }

@@ -11,76 +11,127 @@ export default function LoginPage() {
   const [state, formAction, pending] = useActionState(action, initial);
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-gradient-to-b from-green-700 via-green-800 to-yellow-700 p-4">
-      <div className="w-full max-w-sm rounded-3xl bg-white/95 p-8 shadow-2xl backdrop-blur">
-        <div className="mb-6 text-center">
-          <div className="text-5xl">🍽️⚽</div>
-          <h1 className="mt-2 text-2xl font-black text-green-900">
-            Comidas da Copa
+    <main className="relative flex min-h-dvh items-center justify-center overflow-hidden px-5 py-10">
+      {/* prato/bola flutuante decorativo */}
+      <div className="pointer-events-none absolute -top-10 -left-10 text-[9rem] opacity-20 blur-[1px] [animation:var(--animate-float)]">
+        🍲
+      </div>
+      <div className="pointer-events-none absolute -right-8 bottom-6 text-[7rem] opacity-20 [animation:var(--animate-float)] [animation-delay:-3s]">
+        ⚽
+      </div>
+
+      <div className="relative z-10 w-full max-w-sm [animation:var(--animate-rise)]">
+        {/* Cabeçalho da marca */}
+        <div className="mb-8 text-center">
+          <span className="inline-flex items-center gap-2 rounded-full border border-line bg-card/70 px-3 py-1 text-[0.7rem] font-semibold tracking-[0.18em] text-saffron uppercase">
+            Copa 2026
+          </span>
+          <h1 className="mt-4 font-display text-5xl leading-[0.95] font-black tracking-tight">
+            <span className="text-gradient">Comidas</span>
+            <br />
+            <span className="text-cream">da Copa</span>
           </h1>
-          <p className="text-sm text-gray-500">
-            {mode === "login" ? "Entre para jogar" : "Crie sua conta"}
+          <p className="mx-auto mt-3 max-w-[16rem] text-sm text-muted">
+            Sorteie uma seleção, invente o prato típico e cozinhe de verdade.
           </p>
         </div>
 
-        <form action={formAction} className="space-y-3">
-          {mode === "signup" && (
-            <input
-              name="name"
-              type="text"
-              placeholder="Seu nome"
-              autoComplete="name"
-              className="w-full rounded-xl border border-gray-300 px-4 py-3 text-gray-900 outline-none focus:border-green-600"
+        {/* Cartão */}
+        <div className="glass rounded-[1.75rem] p-6 shadow-[var(--shadow-warm)]">
+          <div className="mb-5 grid grid-cols-2 gap-1 rounded-2xl bg-coal/60 p-1">
+            <button
+              type="button"
+              onClick={() => setMode("login")}
+              className={`rounded-xl py-2.5 text-sm font-bold transition ${
+                mode === "login"
+                  ? "bg-saffron text-ink shadow"
+                  : "text-muted hover:text-cream"
+              }`}
+            >
+              Entrar
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode("signup")}
+              className={`rounded-xl py-2.5 text-sm font-bold transition ${
+                mode === "signup"
+                  ? "bg-saffron text-ink shadow"
+                  : "text-muted hover:text-cream"
+              }`}
+            >
+              Criar conta
+            </button>
+          </div>
+
+          <form action={formAction} className="space-y-3">
+            {mode === "signup" && (
+              <Field
+                name="name"
+                type="text"
+                placeholder="Seu nome"
+                autoComplete="name"
+                icon="🙂"
+              />
+            )}
+            <Field
+              name="email"
+              type="email"
+              placeholder="Email"
+              autoComplete="email"
+              icon="✉️"
             />
-          )}
-          <input
-            name="email"
-            type="email"
-            placeholder="Email"
-            autoComplete="email"
-            className="w-full rounded-xl border border-gray-300 px-4 py-3 text-gray-900 outline-none focus:border-green-600"
-          />
-          <input
-            name="password"
-            type="password"
-            placeholder="Senha"
-            autoComplete={mode === "login" ? "current-password" : "new-password"}
-            className="w-full rounded-xl border border-gray-300 px-4 py-3 text-gray-900 outline-none focus:border-green-600"
-          />
+            <Field
+              name="password"
+              type="password"
+              placeholder="Senha"
+              autoComplete={mode === "login" ? "current-password" : "new-password"}
+              icon="🔒"
+            />
 
-          {state.error && (
-            <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
-              {state.error}
-            </p>
-          )}
-          {state.message && (
-            <p className="rounded-lg bg-green-50 px-3 py-2 text-sm text-green-700">
-              {state.message}
-            </p>
-          )}
+            {state.error && (
+              <p className="rounded-xl border border-paprika/40 bg-paprika/15 px-3 py-2 text-sm text-paprika">
+                {state.error}
+              </p>
+            )}
+            {state.message && (
+              <p className="rounded-xl border border-pitch/40 bg-pitch/15 px-3 py-2 text-sm text-pitch">
+                {state.message}
+              </p>
+            )}
 
-          <button
-            type="submit"
-            disabled={pending}
-            className="w-full rounded-xl bg-green-700 py-3 font-bold text-white transition hover:bg-green-800 disabled:opacity-60"
-          >
-            {pending
-              ? "Aguarde..."
-              : mode === "login"
-                ? "Entrar"
-                : "Criar conta"}
-          </button>
-        </form>
+            <button
+              type="submit"
+              disabled={pending}
+              className="mt-1 w-full rounded-2xl bg-gradient-to-r from-saffron-bright to-paprika py-3.5 text-base font-black text-ink shadow-[var(--shadow-glow)] transition active:scale-[0.98] disabled:opacity-60"
+            >
+              {pending
+                ? "Aguarde…"
+                : mode === "login"
+                  ? "Entrar e jogar"
+                  : "Criar minha conta"}
+            </button>
+          </form>
+        </div>
 
-        <button
-          onClick={() => setMode(mode === "login" ? "signup" : "login")}
-          className="mt-4 w-full text-center text-sm text-green-700 hover:underline"
-        >
-          {mode === "login"
-            ? "Não tem conta? Cadastre-se"
-            : "Já tem conta? Entrar"}
-        </button>
+        <p className="mt-6 text-center text-xs text-faint">
+          Feito para jogar em dupla 🍴⚽
+        </p>
       </div>
     </main>
+  );
+}
+
+function Field({
+  icon,
+  ...props
+}: { icon: string } & React.InputHTMLAttributes<HTMLInputElement>) {
+  return (
+    <div className="flex items-center gap-2 rounded-2xl border border-line bg-coal/50 px-4 transition focus-within:border-saffron focus-within:bg-coal/80">
+      <span className="text-base opacity-70">{icon}</span>
+      <input
+        {...props}
+        className="w-full bg-transparent py-3.5 text-cream placeholder:text-faint outline-none"
+      />
+    </div>
   );
 }
