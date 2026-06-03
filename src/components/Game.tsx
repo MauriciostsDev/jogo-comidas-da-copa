@@ -271,15 +271,8 @@ export default function Game({ userId, userName }: Props) {
       </header>
 
       <main className="stage">
-        {/* Stepper */}
-        <div className="steps">
-          {[1, 2, 3, 4, 5].map((n, i) => (
-            <div key={n} className={`step ${i < stepIdx ? "done" : i === stepIdx ? "cur" : ""}`}>
-              <span className="dot">{n}</span>
-              {i < 4 && <span className="bar" />}
-            </div>
-          ))}
-        </div>
+        {/* Stepper — 9 elements (dot,bar,dot,bar,...) matching prototype */}
+        <Stepper stepIdx={stepIdx} />
 
         {error && (
           <p className="tiny" style={{ color: "var(--pink)" }}>⚠ {error}</p>
@@ -527,10 +520,7 @@ export default function Game({ userId, userName }: Props) {
         {/* ── 7. GALERIA ─────────────────────────────────────── */}
         {scene === "gallery" && (
           <section className="screen active">
-            <div className="row between wrap">
-              <h2 className="neon-yellow">⭐ QUADRO DE FOTOS</h2>
-              <span className="badge">estilo iFood</span>
-            </div>
+            <h2 className="neon-yellow">⭐ QUADRO DE FOTOS</h2>
             <Gallery supabase={supabase} userId={userId} userName={userName} />
           </section>
         )}
@@ -683,17 +673,46 @@ function CookScreen({
   );
 }
 
+// ─── Stepper (9 elements: 5 dots + 4 bars, matching prototype) ───────────────
+function Stepper({ stepIdx }: { stepIdx: number }) {
+  const els = [
+    { type: "dot", n: 1 }, { type: "bar" },
+    { type: "dot", n: 2 }, { type: "bar" },
+    { type: "dot", n: 3 }, { type: "bar" },
+    { type: "dot", n: 4 }, { type: "bar" },
+    { type: "dot", n: 5 },
+  ] as const;
+  return (
+    <div className="steps">
+      {els.map((el, i) => (
+        <div key={i} className={`step ${i < stepIdx ? "done" : i === stepIdx ? "cur" : ""}`}>
+          {el.type === "dot" ? <span className="dot">{el.n}</span> : <span className="bar" />}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ─── Theme Toggle ─────────────────────────────────────────────────────────────
 function ThemeToggle() {
+  const [theme, setTheme] = useState<"dark" | "light">("dark");
+
+  useEffect(() => {
+    const t = document.documentElement.getAttribute("data-theme") ?? "dark";
+    setTheme(t as "dark" | "light");
+  }, []);
+
   function toggle() {
-    const html = document.documentElement;
-    const next = html.getAttribute("data-theme") === "light" ? "dark" : "light";
-    html.setAttribute("data-theme", next);
+    const next = theme === "light" ? "dark" : "light";
+    document.documentElement.setAttribute("data-theme", next);
     localStorage.setItem("cc-theme", next);
+    setTheme(next);
   }
+
   return (
     <button className="toggle" onClick={toggle} aria-label="Alternar tema">
-      <span>🌙</span>
+      <span>{theme === "light" ? "☀️" : "🌙"}</span>{" "}
+      <span>{theme === "light" ? "CLARO" : "ESCURO"}</span>
     </button>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { login, signup, type AuthState } from "./actions";
 import { TEAMS } from "@/lib/teams";
 
@@ -33,6 +33,21 @@ export default function LoginPage() {
       </header>
 
       <main className="stage center">
+        {/* Stepper — login = step 0 */}
+        <div className="steps">
+          {[
+            { type: "dot", n: 1 }, { type: "bar" },
+            { type: "dot", n: 2 }, { type: "bar" },
+            { type: "dot", n: 3 }, { type: "bar" },
+            { type: "dot", n: 4 }, { type: "bar" },
+            { type: "dot", n: 5 },
+          ].map((el, i) => (
+            <div key={i} className={`step ${i === 0 ? "cur" : ""}`}>
+              {el.type === "dot" ? <span className="dot">{(el as { n: number }).n}</span> : <span className="bar" />}
+            </div>
+          ))}
+        </div>
+
         {/* Marquee de bandeiras */}
         <div className="flags-marquee" style={{ width: "100%" }}>
           <div>{MARQUEE_ROW}</div>
@@ -150,16 +165,24 @@ export default function LoginPage() {
 }
 
 function ThemeToggle() {
+  const [theme, setTheme] = useState<"dark" | "light">("dark");
+
+  useEffect(() => {
+    const t = document.documentElement.getAttribute("data-theme") ?? "dark";
+    setTheme(t as "dark" | "light");
+  }, []);
+
   function toggle() {
-    const html = document.documentElement;
-    const next = html.getAttribute("data-theme") === "light" ? "dark" : "light";
-    html.setAttribute("data-theme", next);
+    const next = theme === "light" ? "dark" : "light";
+    document.documentElement.setAttribute("data-theme", next);
     localStorage.setItem("cc-theme", next);
+    setTheme(next);
   }
 
   return (
     <button className="toggle" onClick={toggle} aria-label="Alternar tema">
-      <span>🌙</span> <span>TEMA</span>
+      <span>{theme === "light" ? "☀️" : "🌙"}</span>{" "}
+      <span>{theme === "light" ? "CLARO" : "ESCURO"}</span>
     </button>
   );
 }
