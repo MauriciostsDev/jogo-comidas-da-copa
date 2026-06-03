@@ -13,7 +13,9 @@ export async function updateSession(request: NextRequest) {
     return response;
   }
 
-  const supabase = createServerClient(url, key, {
+  let user = null;
+  try {
+    const supabase = createServerClient(url, key, {
       cookies: {
         getAll() {
           return request.cookies.getAll();
@@ -28,15 +30,12 @@ export async function updateSession(request: NextRequest) {
           );
         },
       },
-    },
-  );
+    });
 
-  let user = null;
-  try {
     const result = await supabase.auth.getUser();
     user = result.data.user;
   } catch {
-    // Erro ao falar com o Supabase (ex.: chave inválida) — não derruba o app.
+    // URL/chave inválida ou erro de rede — não derruba o app (evita 500 global).
     return response;
   }
 

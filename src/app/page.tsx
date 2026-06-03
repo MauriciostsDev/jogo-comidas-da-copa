@@ -3,10 +3,14 @@ import { createClient } from "@/lib/supabase/server";
 import Game from "@/components/Game";
 
 export default async function Home() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  let user = null;
+  try {
+    const supabase = await createClient();
+    const result = await supabase.auth.getUser();
+    user = result.data.user;
+  } catch {
+    redirect("/login");
+  }
 
   if (!user) redirect("/login");
 
