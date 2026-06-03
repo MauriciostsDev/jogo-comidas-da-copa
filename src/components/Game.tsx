@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import type { Country, Food, Match } from "@/lib/types";
 import { attachPhoto, chooseFood, drawCountry, submitFood } from "@/app/actions";
 import Gallery from "./Gallery";
+import Lobby from "./Lobby";
 
 type Props = { userId: string; userName: string };
 
@@ -256,35 +257,17 @@ export default function Game({ userId, userName }: Props) {
               />
             )}
 
-            {/* Sortear país */}
+            {/* Sala de espera + ready-check antes de sortear */}
             {canDraw && (
-              <div className="glass relative overflow-hidden rounded-[1.75rem] p-8 text-center [animation:var(--animate-rise)]">
-                <div className="pointer-events-none absolute -top-8 -right-6 text-[8rem] opacity-10 [animation:var(--animate-float)]">
-                  ⚽
-                </div>
-                <div className="text-7xl [animation:var(--animate-float)]">
-                  🌍
-                </div>
-                <h2 className="mt-4 font-display text-3xl font-black text-cream">
-                  {status === "done" ? "Bora pra próxima?" : "Hora de jogar!"}
-                </h2>
-                <p className="mx-auto mt-2 max-w-xs text-sm text-muted">
-                  Sorteie uma seleção. Vocês terão{" "}
-                  <strong className="text-cream">7 minutos</strong> pra escrever
-                  um prato típico cada um.
-                </p>
-                <button
-                  onClick={handleDraw}
-                  disabled={busy || drawnCount >= TOTAL_PAISES}
-                  className="mt-6 w-full rounded-2xl bg-gradient-to-r from-saffron-bright to-paprika py-4 text-lg font-black text-ink shadow-[var(--shadow-glow)] transition active:scale-[0.98] disabled:opacity-60"
-                >
-                  {drawnCount >= TOTAL_PAISES
-                    ? "Acabaram as seleções! 🏁"
-                    : busy
-                      ? "Sorteando…"
-                      : "🎲 Sortear seleção"}
-                </button>
-              </div>
+              <Lobby
+                supabase={supabase}
+                userId={userId}
+                userName={userName}
+                isNextRound={status === "done"}
+                canDrawMore={drawnCount < TOTAL_PAISES}
+                busy={busy}
+                onDraw={handleDraw}
+              />
             )}
 
             {/* Fase: escrever o prato */}

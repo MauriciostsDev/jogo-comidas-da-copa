@@ -21,6 +21,15 @@ export async function login(
   const { error } = await supabase.auth.signInWithPassword({ email, password });
 
   if (error) {
+    if (
+      error.code === "email_not_confirmed" ||
+      /not confirmed/i.test(error.message)
+    ) {
+      return {
+        error:
+          "Seu email ainda não foi confirmado. Abra o link que o Supabase enviou e tente de novo.",
+      };
+    }
     return { error: "Email ou senha inválidos." };
   }
 
@@ -51,6 +60,14 @@ export async function signup(
   });
 
   if (error) {
+    if (
+      error.code === "user_already_exists" ||
+      /already registered|already exists/i.test(error.message)
+    ) {
+      return {
+        error: "Essa conta já existe. Use a aba “Entrar” pra fazer login.",
+      };
+    }
     return { error: error.message };
   }
 
