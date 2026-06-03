@@ -218,9 +218,24 @@ $$;
 
 -- ---------- Realtime ----------
 -- Publica matches, foods e reviews para a sincronização ao vivo.
-alter publication supabase_realtime add table matches;
-alter publication supabase_realtime add table foods;
-alter publication supabase_realtime add table reviews;
+-- (idempotente: só adiciona se a tabela ainda não estiver na publicação,
+--  pra você poder rodar este arquivo inteiro quantas vezes quiser.)
+do $$
+declare
+  t text;
+begin
+  foreach t in array array['matches', 'foods', 'reviews'] loop
+    if not exists (
+      select 1 from pg_publication_tables
+      where pubname = 'supabase_realtime'
+        and schemaname = 'public'
+        and tablename = t
+    ) then
+      execute format('alter publication supabase_realtime add table %I', t);
+    end if;
+  end loop;
+end;
+$$;
 
 -- ---------- Storage (fotos dos pratos) ----------
 insert into storage.buckets (id, name, public)
