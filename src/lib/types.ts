@@ -37,6 +37,26 @@ export type Review = {
   created_at: string;
 };
 
+export type Like = {
+  match_id: string;
+  user_id: string;
+  created_at: string;
+};
+
+export type Profile = {
+  user_id: string;
+  display_name: string;
+  invite_code: string;
+  created_at: string;
+};
+
+export type Friendship = {
+  id: string;
+  user1_id: string;
+  user2_id: string;
+  created_at: string;
+};
+
 // Um prato concluído com tudo que a galeria precisa exibir.
 export type GalleryDish = {
   match_id: string;
@@ -48,4 +68,6 @@ export type GalleryDish = {
   dish: string;
   cook: string;
   reviews: Review[];
+  likes: Like[];
+  mine: boolean;
 };

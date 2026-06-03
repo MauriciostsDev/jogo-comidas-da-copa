@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Comidas da Copa 2026</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- ===== Topbar ===== -->
+<header class="topbar">
+  <div class="brand"><span class="ball">⚽</span> COMIDAS <b>DA COPA</b></div>
+  <div class="right">
+    <button class="toggle" id="themeToggle"><span id="themeIcon">🌙</span> <span id="themeLabel">ESCURO</span></button>
+  </div>
+</header>
+
+<main class="stage">
+
+  <!-- progress stepper -->
+  <div class="steps" id="steps">
+    <div class="step cur"><span class="dot">1</span></div><div class="step"><span class="bar"></span></div>
+    <div class="step"><span class="dot">2</span></div><div class="step"><span class="bar"></span></div>
+    <div class="step"><span class="dot">3</span></div><div class="step"><span class="bar"></span></div>
+    <div class="step"><span class="dot">4</span></div><div class="step"><span class="bar"></span></div>
+    <div class="step"><span class="dot">5</span></div>
+  </div>
+
+  <!-- ============ 1. LOGIN ============ -->
+  <section id="sc-login" class="screen center active">
+    <div class="flags-marquee" style="width:100%"><div class="mq-row"></div></div>
+    <h1 class="neon floaty" style="margin-top:8px">COMIDAS DA COPA</h1>
+    <p class="lead">Sorteie · Cozinhe · Avalie 🏆</p>
+
+    <div class="card bolts accent" style="width:100%;max-width:420px;margin-top:8px">
+      <div class="card-title" id="authTitle">INSERT COIN</div>
+      <p class="help" id="authSub" style="margin-bottom:14px">Faça login pra entrar na sala</p>
+      <form id="authForm" class="col" style="text-align:left">
+        <div class="field hidden" id="nameField">
+          <label class="label">NOME DE JOGADOR</label>
+          <input class="input" id="nameInput" placeholder="Chef..." maxlength="14">
+        </div>
+        <div class="field">
+          <label class="label">E-MAIL</label>
+          <input class="input" type="email" placeholder="voce@email.com" required>
+        </div>
+        <div class="field">
+          <label class="label">SENHA</label>
+          <input class="input" type="password" placeholder="••••••••" required>
+        </div>
+        <button class="btn block lg mt8" id="authBtn" type="submit">ENTRAR ▸</button>
+      </form>
+      <div class="divider mt20">OU</div>
+      <a href="#" class="tiny" id="authSwitch" style="display:block;text-align:center;color:var(--accent-2);margin-top:12px">Não tem conta? CADASTRE-SE</a>
+    </div>
+    <p class="tiny" style="color:var(--muted);margin-top:18px">🔒 Autenticação segura</p>
+  </section>
+
+  <!-- ============ 2. SALA DE ESPERA ============ -->
+  <section id="sc-lobby" class="screen">
+    <div class="row between wrap">
+      <h2 class="neon-pink">🚪 SALA DE ESPERA</h2>
+      <span class="badge dot">SALA #2026</span>
+    </div>
+    <p class="help" id="lobbyHint">Esperando sua dupla entrar…</p>
+
+    <div class="col gap20 mt8">
+      <div class="player me">
+        <div class="avatar">🧑‍🍳</div>
+        <div><div class="pname" id="meName">VOCÊ</div><div class="pmeta">jogador 1 · host</div></div>
+        <span class="ready-tag no" id="meReadyTag">AGUARDANDO</span>
+      </div>
+      <div class="player" id="mateSlot"></div>
+    </div>
+
+    <div class="row gap20 mt20 wrap">
+      <button class="btn green grow" id="meReadyBtn" style="min-width:200px">ESTOU PRONTO</button>
+      <button class="btn yellow grow" id="startDraw" style="min-width:200px" disabled>LIBERAR SORTEIO 🎲</button>
+    </div>
+    <p class="tiny" style="color:var(--muted);margin-top:auto">Dica: os dois precisam marcar PRONTO pra liberar o sorteio.</p>
+  </section>
+
+  <!-- ============ 3. SORTEIO DA SELEÇÃO ============ -->
+  <section id="sc-draw" class="screen center">
+    <h2 class="neon">🎲 SORTEIO DA SELEÇÃO</h2>
+    <p class="help">48 seleções na roleta. Boa sorte!</p>
+
+    <div id="reelBox" style="width:100%;max-width:480px;margin-top:8px">
+      <div class="reel"><div class="reel-track" id="reelTrack"></div><div class="reel-line"></div></div>
+    </div>
+
+    <div id="drawResult" class="card bolts accent hidden" style="width:100%;max-width:480px;margin-top:8px">
+      <div class="card-title">SUA SELEÇÃO</div>
+      <div class="result-flag" id="resFlag">🏳️</div>
+      <h2 id="resName" style="margin-top:10px">—</h2>
+      <span class="badge confed" id="resConf" style="margin-top:8px">—</span>
+      <div class="col mt20" style="gap:8px">
+        <div class="row between"><span class="tiny" style="color:var(--muted)">⏱ TEMPO PRA ESCOLHER O PRATO</span><span class="timer" id="timer">07:00</span></div>
+        <div class="timerbar"><i id="timerFill" style="width:100%"></i></div>
+      </div>
+    </div>
+
+    <button class="btn lg pink mt20" id="spinBtn">GIRAR A ROLETA 🎰</button>
+    <button class="btn lg green mt8 hidden" id="toWrite" data-goto="write">ESCREVER O PRATO ▸</button>
+  </section>
+
+  <!-- ============ 4. ESCREVER O PRATO ============ -->
+  <section id="sc-write" class="screen">
+    <div class="row between wrap">
+      <h2 class="neon-yellow">✍️ ESCREVA O PRATO</h2>
+      <span class="badge"><span id="writeFlag">🏳️</span> <span id="writeCountry">—</span></span>
+    </div>
+    <p class="help">Qual prato típico desse país vocês vão encarar?</p>
+
+    <div class="field mt8">
+      <label class="label">SEU PRATO TÍPICO</label>
+      <input class="input" id="dishInput" placeholder="ex: Feijoada, Paella, Ramen…" maxlength="40">
+    </div>
+
+    <div class="card tight" style="margin-top:8px">
+      <div class="card-title">👩‍🍳 SUA DUPLA</div>
+      <div id="mateTyping" class="row gap8"><span class="typing"><span></span><span></span><span></span></span><span class="help">digitando…</span></div>
+      <div class="live-text caret" id="mateLive"></div>
+      <div id="mateDone" class="badge dot hidden" style="margin-top:10px">✓ dupla finalizou</div>
+    </div>
+
+    <button class="btn lg green mt20" id="dishConfirm" disabled>CONFIRMAR PRATO ▸</button>
+    <p class="tiny" style="color:var(--muted);margin-top:auto">O sistema vai sortear entre o seu prato e o da sua dupla.</p>
+  </section>
+
+  <!-- ============ 5. SORTEIO DO PRATO ============ -->
+  <section id="sc-pick" class="screen center">
+    <h2 class="neon-pink">🍴 PRATO SORTEADO</h2>
+    <p class="help">O sistema escolheu um dos dois pratos — mas a decisão final é de vocês.</p>
+
+    <div class="col gap20 mt8" style="width:100%;max-width:440px">
+      <div class="dish win" id="winDish"></div>
+      <div class="dish" id="otherDish"></div>
+    </div>
+
+    <button class="btn ghost mt20 hidden" id="swapBtn">TROCAR PELA OUTRA ⇄</button>
+    <button class="btn lg yellow mt8" id="toCook">BORA COZINHAR 🔥</button>
+  </section>
+
+  <!-- ============ 6. COZINHAR + FOTO ============ -->
+  <section id="sc-cook" class="screen">
+    <div class="row between wrap">
+      <h2 class="neon">📸 COZINHE & FOTOGRAFE</h2>
+      <span class="badge"><span id="cookFlag">🏳️</span></span>
+    </div>
+    <p class="help">Mãos à obra! Quando o prato <b id="cookDish">—</b> estiver pronto, mande a foto.</p>
+
+    <div class="dropzone mt8" id="dropzone">
+      <input type="file" id="fileInput" accept="image/*" capture="environment" hidden>
+      <div>
+        <div class="big">🍳</div>
+        <div class="pix" style="font-size:11px;color:var(--accent)">TOQUE PARA ENVIAR</div>
+        <p class="help mt8">ou arraste a foto aqui</p>
+      </div>
+    </div>
+
+    <div class="preview-wrap hidden" id="previewWrap">
+      <img id="previewImg" alt="prato">
+    </div>
+
+    <div class="row gap8 mt20 wrap">
+      <button class="btn ghost sm hidden" id="retakeBtn">TIRAR OUTRA ↺</button>
+    </div>
+    <button class="btn lg green mt8" id="sendPhoto" disabled>ENVIAR PRA GALERIA ▸</button>
+  </section>
+
+  <!-- ============ 7. MINHA GALERIA (só a dupla) ============ -->
+  <section id="sc-gallery" class="screen">
+    <div class="row between wrap">
+      <h2 class="neon-green">🏆 MINHA GALERIA</h2>
+      <span class="badge dot" id="galleryDuo">SUA DUPLA</span>
+    </div>
+    <p class="help">A vitrine de vocês dois. Os pratos que cozinharam e as notas que receberam.</p>
+
+    <div class="stats-row mt8" id="myStats"></div>
+
+    <div class="grid mt8" id="galleryGrid"></div>
+
+    <div class="empty-gallery hidden" id="galleryEmpty">
+      <div class="big">🍽️</div>
+      <div class="pix" style="font-size:12px;color:var(--accent)">AINDA SEM PRATOS</div>
+      <p class="help mt8">Cozinhem o prato sorteado e mandem a foto pra aparecer aqui.</p>
+      <button class="btn green sm mt20" data-goto="cook">IR COZINHAR 🔥</button>
+    </div>
+  </section>
+
+  <!-- ============ 8. SOCIAL (feed das outras duplas) ============ -->
+  <section id="sc-social" class="screen">
+    <div class="row between wrap">
+      <h2 class="neon-pink">🌐 SOCIAL</h2>
+      <span class="badge dot">SALA #2026 · AO VIVO</span>
+    </div>
+    <p class="help">O feed da galera. Curta, avalie e comente os pratos das outras duplas.</p>
+
+    <!-- pódio da semana -->
+    <div class="podium" id="podium"></div>
+
+    <!-- filtros -->
+    <div class="chips" id="feedChips">
+      <button class="chip on" data-sort="hot">🔥 EM ALTA</button>
+      <button class="chip" data-sort="new">🆕 RECENTES</button>
+      <button class="chip" data-sort="top">🏅 + VOTADOS</button>
+    </div>
+
+    <div class="feed" id="feed"></div>
+  </section>
+
+</main>
+
+<!-- ===== Bottom nav (prototype navigator) ===== -->
+<nav class="nav" id="nav">
+  <button class="nav-btn on" data-go="login"><span class="n">🎮</span>Login</button>
+  <button class="nav-btn" data-go="lobby"><span class="n">🚪</span>Sala</button>
+  <button class="nav-btn" data-go="draw"><span class="n">🎲</span>Sorteio</button>
+  <button class="nav-btn" data-go="write"><span class="n">✍️</span>Prato</button>
+  <button class="nav-btn" data-go="pick"><span class="n">🍴</span>Escolha</button>
+  <button class="nav-btn" data-go="cook"><span class="n">📸</span>Cozinhar</button>
+  <button class="nav-btn" data-go="gallery"><span class="n">🏆</span>Galeria</button>
+  <button class="nav-btn" data-go="social"><span class="n">🌐</span>Social</button>
+</nav>
+
+<!-- ===== Modal ===== -->
+<div id="modal" class="modal-overlay hidden">
+  <div class="card bolts accent modal-box">
+    <div class="card-title">CONFIRMAR</div>
+    <p id="modalText" style="margin:10px 0 18px">—</p>
+    <div class="row gap8">
+      <button class="btn ghost grow" id="modalNo">NÃO</button>
+      <button class="btn green grow" id="modalYes">SIM, TROCAR</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Toast ===== -->
+<div id="toast" class="toast"></div>
+
+<canvas id="confetti"></canvas>
+
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

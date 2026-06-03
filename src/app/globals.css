@@ -466,6 +466,115 @@ textarea.input { resize: none; line-height: 1.3; }
 }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 
+/* ---------- minha galeria: stats + empty ---------- */
+.stats-row { display: flex; gap: 12px; flex-wrap: wrap; }
+.stat {
+  flex: 1; min-width: 120px;
+  border: var(--pix) solid var(--line); background: var(--surface);
+  box-shadow: 5px 5px 0 var(--shadow); padding: 14px 16px; text-align: center;
+}
+.stat .num { font-family: var(--display); font-size: 20px; color: var(--accent); text-shadow: var(--glow) var(--accent); }
+.stat .lbl { font-family: var(--display); font-size: 9px; color: var(--muted); margin-top: 8px; letter-spacing: .5px; }
+.empty-gallery {
+  border: var(--pix) dashed var(--line); background: var(--surface);
+  padding: 36px 24px; text-align: center;
+  display: flex; flex-direction: column; align-items: center;
+}
+.empty-gallery .big { font-size: 54px; margin-bottom: 10px; }
+
+/* ---------- social: pódio da semana ---------- */
+.podium { display: grid; grid-template-columns: 1fr 1.15fr 1fr; gap: 12px; align-items: end; }
+.pod {
+  border: var(--pix) solid var(--line); background: var(--surface);
+  box-shadow: 5px 5px 0 var(--shadow);
+  padding: 14px 10px 16px; text-align: center; position: relative;
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+}
+.pod .medal { font-size: 30px; line-height: 1; }
+.pod .pemoji { font-size: 38px; line-height: 1; filter: drop-shadow(2px 2px 0 var(--shadow)); }
+.pod .pflag { position: absolute; top: 8px; right: 8px; font-size: 20px; }
+.pod .pduo { font-family: var(--display); font-size: 9px; line-height: 1.5; }
+.pod .pscore { font-family: var(--display); font-size: 11px; color: var(--yellow); }
+.pod.p1 { border-color: var(--yellow); box-shadow: 5px 5px 0 var(--shadow), 0 0 0 2px var(--yellow); padding-top: 20px; }
+.pod.p2 { border-color: var(--muted); }
+.pod.p3 { border-color: var(--orange); }
+@media(max-width:480px){ .pod .pduo { font-size: 8px; } .pod .pemoji { font-size: 30px; } }
+
+/* ---------- social: filtros (chips) ---------- */
+.chips { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+.chips::-webkit-scrollbar { display: none; }
+.chip {
+  flex: 0 0 auto; font-family: var(--display); font-size: 9px; letter-spacing: .5px; cursor: pointer;
+  border: 2px solid var(--line); background: var(--surface); color: var(--muted); padding: 9px 12px; white-space: nowrap;
+  box-shadow: 3px 3px 0 var(--shadow); transition: transform .07s, box-shadow .07s;
+}
+.chip:hover { color: var(--ink); }
+.chip:active { transform: translate(3px,3px); box-shadow: 0 0 0 var(--shadow); }
+.chip.on { background: var(--pink); color: #fff; border-color: var(--pink); }
+
+/* ---------- social: feed de posts ---------- */
+.feed { display: flex; flex-direction: column; gap: 22px; width: 100%; max-width: 560px; margin: 0 auto; }
+.post {
+  border: var(--pix) solid var(--line); background: var(--surface); box-shadow: 6px 6px 0 var(--shadow);
+  display: flex; flex-direction: column; animation: screen-in .3s ease both;
+}
+.post-head { display: flex; align-items: center; gap: 12px; padding: 14px 14px 12px; }
+.post-head .avatar { width: 44px; height: 44px; flex: 0 0 44px; font-size: 24px; border-width: 2px; }
+.post-head .meta { flex: 1; min-width: 0; }
+.post-head .pduo { font-family: var(--display); font-size: 11px; }
+.post-head .psub { color: var(--muted); font-size: 16px; display: flex; align-items: center; gap: 6px; }
+.post-photo {
+  aspect-ratio: 1/1; background: var(--surface-2); position: relative; display: grid; place-items: center;
+  border-top: 3px solid var(--line); border-bottom: 3px solid var(--line);
+}
+.post-photo .pbig { font-size: 96px; line-height: 1; filter: drop-shadow(3px 3px 0 var(--shadow)); }
+.post-photo img { width: 100%; height: 100%; object-fit: cover; }
+.post-photo .pflag { position: absolute; top: 10px; left: 10px; font-size: 28px; filter: drop-shadow(2px 2px 0 var(--shadow)); }
+.post-photo .pscore { position: absolute; bottom: 10px; right: 10px; font-family: var(--display); font-size: 10px; background: var(--surface); border: 2px solid var(--line); padding: 5px 7px; color: var(--yellow); }
+.post-bar { display: flex; align-items: center; gap: 6px; padding: 12px 14px 4px; }
+.act {
+  display: inline-flex; align-items: center; gap: 7px; cursor: pointer; font-family: var(--display); font-size: 11px;
+  color: var(--muted); background: none; border: none; padding: 6px 4px; transition: color .12s, transform .1s;
+}
+.act:hover { color: var(--ink); }
+.act .ic { font-size: 20px; line-height: 1; filter: grayscale(1) opacity(.7); }
+.act.like.on { color: var(--pink); }
+.act.like.on .ic { filter: none; animation: pop .3s ease; }
+.act.cmt:hover { color: var(--cyan); }
+.act.spacer { margin-left: auto; cursor: pointer; }
+.post-body { padding: 4px 14px 16px; display: flex; flex-direction: column; gap: 8px; }
+.post-caption { font-size: 19px; line-height: 1.3; }
+.post-caption .pdish { font-family: var(--display); font-size: 12px; color: var(--accent); margin-right: 8px; }
+.post-reviews { display: flex; flex-direction: column; gap: 0; margin-top: 2px; }
+.toggle-cmt { font-family: var(--display); font-size: 9px; color: var(--muted); background: none; border: none; cursor: pointer; text-align: left; padding: 4px 0; }
+.toggle-cmt:hover { color: var(--cyan); }
+.rate-box { border: 3px solid var(--line); background: var(--surface-2); padding: 12px; display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
+.rate-box .rlabel { font-family: var(--display); font-size: 9px; color: var(--muted); }
+.rate-box .rrow { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.gby .neon { margin: 0 4px; }
+
+/* ---------- Friend invite UI ---------- */
+.invite-chip {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center;
+  margin-top: 20px; padding: 12px 16px;
+  border: 2px dashed var(--accent); background: var(--surface);
+  cursor: pointer; transition: background .15s;
+}
+.invite-chip:hover { background: var(--surface-2); }
+.invite-code {
+  font-family: var(--display); font-size: 16px;
+  color: var(--accent); letter-spacing: 5px;
+  text-shadow: var(--glow) var(--accent);
+}
+.invite-inline {
+  display: inline-block; margin-left: 10px;
+  font-family: var(--display); font-size: 8px;
+  color: var(--accent); border: 1px solid var(--accent);
+  padding: 3px 6px; cursor: pointer;
+  transition: background .12s;
+}
+.invite-inline:hover { background: var(--surface-2); }
+
 /* ---------- Keyframes ---------- */
 @keyframes blink   { 0%,49%{opacity:1} 50%,100%{opacity:.15} }
 @keyframes spin    { to{transform:rotate(360deg)} }

@@ -35,7 +35,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt-BR" className={`${pressStart.variable} ${vt323.variable}`}>
+    <html lang="pt-BR" className={`${pressStart.variable} ${vt323.variable}`} suppressHydrationWarning>
       {/* Inline script sets data-theme from localStorage before first paint — no flash */}
       <head>
         <script

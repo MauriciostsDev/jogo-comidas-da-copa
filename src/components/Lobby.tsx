@@ -2,8 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { RealtimeChannel, SupabaseClient } from "@supabase/supabase-js";
+import type { Profile } from "@/lib/types";
 import { fireConfetti } from "@/lib/confetti";
 import { showToast } from "@/lib/toast";
+import { getOrCreateProfile } from "@/app/actions";
+import FriendInvite from "./FriendInvite";
 
 type Player = { userId: string; userName: string; ready: boolean };
 
@@ -15,9 +18,12 @@ type Props = {
   canDrawMore: boolean;
   busy: boolean;
   onDraw: () => void;
+  // Countries that one side cooked but the other hasn't — offer exclusion toggle
+  countriesToExclude: { id: number; name: string; flag: string; cookedByMe: boolean }[];
+  onToggleExclusion: (countryId: number, exclude: boolean) => void;
+  exclusions: Set<number>;
 };
 
-// Simple emoji avatar based on first char
 function playerEmoji(name: string) {
   const emojis = ["🧑‍🍳", "👩‍🍳", "👨‍🍳", "🍳", "🥘", "🍲"];
   return emojis[name.charCodeAt(0) % emojis.length];
@@ -31,13 +37,25 @@ export default function Lobby({
   canDrawMore,
   busy,
   onDraw,
+  countriesToExclude,
+  onToggleExclusion,
+  exclusions,
 }: Props) {
   const channelRef = useRef<RealtimeChannel | null>(null);
   const [players, setPlayers] = useState<Player[]>([]);
   const [joined, setJoined] = useState(false);
   const [ready, setReady] = useState(false);
+  const [showInvite, setShowInvite] = useState(false);
+  const [myProfile, setMyProfile] = useState<Profile | null>(null);
   const prevPlayerCount = useRef(0);
   const prevReadyIds = useRef<Set<string>>(new Set());
+
+  // Load profile to show invite code
+  useEffect(() => {
+    getOrCreateProfile().then((r) => {
+      if (r.ok && r.profile) setMyProfile(r.profile);
+    });
+  }, []);
 
   useEffect(() => {
     const channel = supabase.channel("sala-comidas", {
@@ -60,16 +78,12 @@ export default function Lobby({
       }
       const list = [...byUser.values()];
 
-      // notify when partner joins
       if (list.length > prevPlayerCount.current) {
         const newcomer = list.find((p) => p.userId !== userId);
-        if (newcomer) {
-          showToast(`👋 ${newcomer.userName} entrou na sala!`);
-        }
+        if (newcomer) showToast(`👋 ${newcomer.userName} entrou na sala!`);
       }
       prevPlayerCount.current = list.length;
 
-      // notify when a partner becomes ready (confetti + toast)
       for (const p of list) {
         if (p.userId !== userId && p.ready && !prevReadyIds.current.has(p.userId)) {
           fireConfetti(20);
@@ -108,8 +122,6 @@ export default function Lobby({
 
   const others = players.filter((p) => p.userId !== userId);
   const everyoneReady = players.length >= 2 && players.every((p) => p.ready);
-
-  // Slot para a dupla (pode ser null = aguardando)
   const matePlayer = others[0] ?? null;
 
   // -------- Ainda não entrei --------
@@ -125,6 +137,19 @@ export default function Lobby({
         <button className="btn lg green mt20" onClick={joinRoom}>
           ENTRAR NA SALA 🚪
         </button>
+
+        {/* Invite code chip */}
+        {myProfile && (
+          <div className="invite-chip" onClick={() => setShowInvite(true)}>
+            <span className="tiny" style={{ color: "var(--muted)" }}>SEU CÓDIGO:</span>
+            <span className="invite-code">{myProfile.invite_code}</span>
+            <span className="tiny" style={{ color: "var(--accent)" }}>CONVIDAR DUPLA 🤝</span>
+          </div>
+        )}
+
+        {showInvite && (
+          <FriendInvite onClose={() => setShowInvite(false)} />
+        )}
       </section>
     );
   }
@@ -148,9 +173,20 @@ export default function Lobby({
         {/* Meu slot */}
         <div className="player me">
           <div className="avatar">{playerEmoji(userName)}</div>
-          <div>
+          <div style={{ flex: 1 }}>
             <div className="pname">{userName.toUpperCase().slice(0, 14)}</div>
-            <div className="pmeta">jogador 1 · você</div>
+            <div className="pmeta">
+              jogador 1 · você
+              {myProfile && (
+                <span
+                  className="invite-inline"
+                  onClick={() => setShowInvite(true)}
+                  title="Convidar dupla"
+                >
+                  🤝 {myProfile.invite_code}
+                </span>
+              )}
+            </div>
           </div>
           <span className={`ready-tag ${ready ? "yes" : "no"}`}>
             {ready ? "✓ PRONTO" : "AGUARDANDO"}
@@ -162,9 +198,7 @@ export default function Lobby({
           <div className="player">
             <div className="avatar">{playerEmoji(matePlayer.userName)}</div>
             <div>
-              <div className="pname">
-                {matePlayer.userName.toUpperCase().slice(0, 14)}
-              </div>
+              <div className="pname">{matePlayer.userName.toUpperCase().slice(0, 14)}</div>
               <div className="pmeta">jogador 2</div>
             </div>
             <span className={`ready-tag ${matePlayer.ready ? "yes" : "no"}`}>
@@ -177,15 +211,40 @@ export default function Lobby({
             <div>
               <div className="pname">PROCURANDO…</div>
               <div className="pmeta" style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                <span className="typing">
-                  <span /><span /><span />
-                </span>
+                <span className="typing"><span /><span /><span /></span>
                 aguardando dupla
               </div>
             </div>
           </div>
         )}
       </div>
+
+      {/* Country exclusion options */}
+      {countriesToExclude.length > 0 && (
+        <div className="card tight" style={{ marginTop: 16 }}>
+          <div className="card-title">🌍 PAÍSES JÁ SORTEADOS</div>
+          <p className="help" style={{ marginBottom: 10 }}>
+            Inclua ou exclua países que um de vocês já cozinhou:
+          </p>
+          {countriesToExclude.map((c) => (
+            <div key={c.id} className="row between" style={{ padding: "6px 0", borderTop: "2px solid var(--line)" }}>
+              <div>
+                <span style={{ marginRight: 6 }}>{c.flag}</span>
+                <span style={{ fontFamily: "var(--display)", fontSize: 11 }}>{c.name}</span>
+                <span className="tiny" style={{ color: "var(--muted)", display: "block" }}>
+                  {c.cookedByMe ? "você cozinhou" : "sua dupla cozinhou"}
+                </span>
+              </div>
+              <button
+                className={`btn sm ${exclusions.has(c.id) ? "ghost" : "green"}`}
+                onClick={() => onToggleExclusion(c.id, !exclusions.has(c.id))}
+              >
+                {exclusions.has(c.id) ? "EXCLUÍDO ✕" : "INCLUIR ✓"}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Ações */}
       <div className="row gap20 mt20 wrap">
@@ -210,16 +269,19 @@ export default function Lobby({
         </button>
       </div>
 
+      {/* Invite */}
+      <button
+        className="btn ghost sm mt20"
+        style={{ alignSelf: "center" }}
+        onClick={() => setShowInvite(true)}
+      >
+        🤝 CONVIDAR DUPLA
+      </button>
+
       <button
         onClick={leaveRoom}
-        className="tiny mt20"
-        style={{
-          background: "none",
-          border: "none",
-          color: "var(--muted)",
-          cursor: "pointer",
-          alignSelf: "center",
-        }}
+        className="tiny mt8"
+        style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", alignSelf: "center" }}
       >
         sair da sala
       </button>
@@ -227,6 +289,13 @@ export default function Lobby({
       <p className="tiny" style={{ color: "var(--muted)", marginTop: "auto" }}>
         Dica: os dois precisam marcar PRONTO pra liberar o sorteio.
       </p>
+
+      {showInvite && (
+        <FriendInvite
+          onClose={() => setShowInvite(false)}
+          onFriendAdded={() => showToast("Dupla adicionada! 🎉")}
+        />
+      )}
     </section>
   );
 }

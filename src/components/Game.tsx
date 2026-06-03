@@ -10,8 +10,9 @@ import {
   submitFood,
   swapFood,
 } from "@/app/actions";
-import Gallery from "./Gallery";
+import { MyGallery, Social } from "./Gallery";
 import Lobby from "./Lobby";
+import FriendInvite from "./FriendInvite";
 import { buildReelSeq, rndTeam, type Team } from "@/lib/teams";
 import { fireConfetti } from "@/lib/confetti";
 import { showToast } from "@/lib/toast";
@@ -30,8 +31,17 @@ const STEP_OF: Record<string, number> = {
   pick: 2,
   cook: 3,
   gallery: 4,
+  social: 4,
 };
-type Scene = "lobby" | "draw" | "write" | "pick" | "cook" | "gallery";
+type Scene = "lobby" | "draw" | "write" | "pick" | "cook" | "gallery" | "social";
+
+// Countries one partner cooked but the other hasn't (for exclusion toggle in lobby)
+type ExcludableCountry = {
+  id: number;
+  name: string;
+  flag: string;
+  cookedByMe: boolean;
+};
 
 export default function Game({ userId, userName }: Props) {
   const [supabase] = useState(() => createClient());
@@ -59,8 +69,12 @@ export default function Game({ userId, userName }: Props) {
   const [swapConfirm, setSwapConfirm] = useState(false);
   const lastMatchId = useRef<string | null>(null);
 
-  // Gallery tab
-  const [showGallery, setShowGallery] = useState(false);
+  // Aba manual (galeria/social) — null = segue o fluxo do jogo
+  const [manualScene, setManualScene] = useState<"gallery" | "social" | null>(null);
+
+  // Country exclusion (lobby feature)
+  const [countriesToExclude, setCountriesToExclude] = useState<ExcludableCountry[]>([]);
+  const [exclusions, setExclusions] = useState<Set<number>>(new Set());
 
   const myFoodLoadedFor = useRef<string | null>(null);
   const choosingTriggered = useRef<string | null>(null);
@@ -73,12 +87,40 @@ export default function Game({ userId, userName }: Props) {
       .eq("drawn", true);
     setDrawnCount(count ?? 0);
 
-    const { data: m } = await supabase
-      .from("matches")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    // Find the most recent active match where this user has a food, OR the global last match
+    const { data: myFoodMatches } = await supabase
+      .from("foods")
+      .select("match_id")
+      .eq("user_id", userId);
+
+    const myMatchIds = (myFoodMatches ?? []).map((f: { match_id: string }) => f.match_id);
+
+    // Prefer an active (non-done) match the user participated in
+    let m: Match | null = null;
+    if (myMatchIds.length > 0) {
+      const { data: activeOwn } = await supabase
+        .from("matches")
+        .select("*")
+        .in("id", myMatchIds)
+        .neq("status", "done")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      m = activeOwn ?? null;
+    }
+
+    // Fallback to last global non-done match (for users without a match yet)
+    if (!m) {
+      const { data: activeGlobal } = await supabase
+        .from("matches")
+        .select("*")
+        .neq("status", "done")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      m = activeGlobal ?? null;
+    }
+
     setMatch(m ?? null);
 
     if (!m) { setCountry(null); setFoods([]); setChosenFood(null); return; }
@@ -90,18 +132,102 @@ export default function Game({ userId, userName }: Props) {
     setCountry(c ?? null);
     setFoods(f ?? []);
     setChosenFood((f ?? []).find((x) => x.id === m.chosen_food_id) ?? null);
-  }, [supabase]);
+  }, [supabase, userId]);
+
+  // ── Load country-exclusion candidates for lobby ─────────────
+  const loadExcludable = useCallback(async () => {
+    // Countries cooked by me
+    const { data: myFoods } = await supabase
+      .from("foods")
+      .select("match_id")
+      .eq("user_id", userId);
+    const myMatchIds = (myFoods ?? []).map((f: { match_id: string }) => f.match_id);
+
+    if (!myMatchIds.length) { setCountriesToExclude([]); return; }
+
+    const { data: myMatches } = await supabase
+      .from("matches")
+      .select("country_id, countries!matches_country_id_fkey(name_pt, flag)")
+      .in("id", myMatchIds)
+      .eq("status", "done");
+
+    // Countries cooked by others (not me) in done matches
+    const { data: otherFoods } = await supabase
+      .from("foods")
+      .select("match_id")
+      .neq("user_id", userId);
+    const otherMatchIds = new Set((otherFoods ?? []).map((f: { match_id: string }) => f.match_id));
+
+    const myCookedCountryIds = new Set(
+      (myMatches ?? []).map((m: { country_id: number }) => m.country_id)
+    );
+
+    // Countries others cooked in done matches
+    const { data: otherDone } = await supabase
+      .from("matches")
+      .select("country_id, countries!matches_country_id_fkey(name_pt, flag)")
+      .eq("status", "done")
+      .not("id", "in", myMatchIds.length ? `(${myMatchIds.join(",")})` : "(null)");
+
+    const otherCookedCountryIds = new Set(
+      (otherDone ?? []).map((m: { country_id: number }) => m.country_id)
+    );
+
+    const excludable: ExcludableCountry[] = [];
+
+    // Countries I cooked but others haven't
+    for (const m of myMatches ?? []) {
+      const c = Array.isArray(m.countries) ? m.countries[0] : m.countries;
+      if (c && !otherCookedCountryIds.has(m.country_id)) {
+        excludable.push({
+          id: m.country_id,
+          name: (c as { name_pt: string }).name_pt,
+          flag: (c as { flag: string }).flag,
+          cookedByMe: true,
+        });
+      }
+    }
+
+    // Countries others cooked but I haven't
+    const seenIds = new Set(excludable.map((e) => e.id));
+    for (const m of otherDone ?? []) {
+      if (seenIds.has(m.country_id)) continue;
+      if (!myCookedCountryIds.has(m.country_id)) {
+        const c = Array.isArray(m.countries) ? m.countries[0] : m.countries;
+        if (c) {
+          excludable.push({
+            id: m.country_id,
+            name: (c as { name_pt: string }).name_pt,
+            flag: (c as { flag: string }).flag,
+            cookedByMe: false,
+          });
+          seenIds.add(m.country_id);
+        }
+      }
+    }
+
+    // Only countries still marked as drawn (relevant for re-draw scenarios)
+    const { data: drawn } = await supabase
+      .from("countries")
+      .select("id")
+      .eq("drawn", true);
+    const drawnIds = new Set((drawn ?? []).map((c: { id: number }) => c.id));
+
+    setCountriesToExclude(excludable.filter((e) => drawnIds.has(e.id)));
+    void otherMatchIds; // suppress unused warning
+  }, [supabase, userId]);
 
   // ── Realtime ─────────────────────────────────────────────────
   useEffect(() => {
     refresh();
+    loadExcludable();
     const ch = supabase
       .channel("jogo-comidas")
       .on("postgres_changes", { event: "*", schema: "public", table: "matches" }, () => refresh())
-      .on("postgres_changes", { event: "*", schema: "public", table: "foods" }, () => refresh())
+      .on("postgres_changes", { event: "*", schema: "public", table: "foods" }, () => { refresh(); loadExcludable(); })
       .subscribe();
     return () => { supabase.removeChannel(ch); };
-  }, [supabase, refresh]);
+  }, [supabase, refresh, loadExcludable]);
 
   // ── Clock ────────────────────────────────────────────────────
   useEffect(() => {
@@ -241,12 +367,21 @@ export default function Game({ userId, userName }: Props) {
     else { fireConfetti(100); showToast("📸 Foto enviada pra galeria!"); refresh(); }
   }
 
+  function handleToggleExclusion(countryId: number, exclude: boolean) {
+    setExclusions((prev) => {
+      const next = new Set(prev);
+      if (exclude) next.add(countryId);
+      else next.delete(countryId);
+      return next;
+    });
+  }
+
   const status = match?.status ?? null;
   const canDraw = !match || status === "done";
 
   // Active scene
   let scene: Scene;
-  if (showGallery) { scene = "gallery"; }
+  if (manualScene) { scene = manualScene; }
   else if (drawPhase === "spinning" || drawPhase === "result") { scene = "draw"; }
   else if (status === "writing") { scene = "write"; }
   else if (status === "cooking" && !pickConfirmed) { scene = "pick"; }
@@ -271,7 +406,6 @@ export default function Game({ userId, userName }: Props) {
       </header>
 
       <main className="stage">
-        {/* Stepper — 9 elements (dot,bar,dot,bar,...) matching prototype */}
         <Stepper stepIdx={stepIdx} />
 
         {error && (
@@ -281,7 +415,6 @@ export default function Game({ userId, userName }: Props) {
         {/* ── 1&2. LOBBY ─────────────────────────────────────── */}
         {scene === "lobby" && (
           <>
-            {/* Result card from previous round */}
             {status === "done" && country && chosenFood && (
               <div className="card accent bolts" style={{ textAlign: "center" }}>
                 <div className="card-title">RODADA CONCLUÍDA 🎉</div>
@@ -313,6 +446,9 @@ export default function Game({ userId, userName }: Props) {
                 canDrawMore={drawnCount < TOTAL_PAISES}
                 busy={busy}
                 onDraw={handleDraw}
+                countriesToExclude={countriesToExclude}
+                onToggleExclusion={handleToggleExclusion}
+                exclusions={exclusions}
               />
             )}
           </>
@@ -517,11 +653,27 @@ export default function Game({ userId, userName }: Props) {
           />
         )}
 
-        {/* ── 7. GALERIA ─────────────────────────────────────── */}
+        {/* ── 7. MINHA GALERIA (só a dupla) ──────────────────── */}
         {scene === "gallery" && (
           <section className="screen active">
-            <h2 className="neon-yellow">⭐ QUADRO DE FOTOS</h2>
-            <Gallery supabase={supabase} userId={userId} userName={userName} />
+            <div className="row between wrap">
+              <h2 className="neon-green">🏆 MINHA GALERIA</h2>
+              <span className="badge dot">SUA DUPLA</span>
+            </div>
+            <p className="help">A vitrine de vocês dois. Os pratos que cozinharam e as notas que receberam.</p>
+            <MyGallery supabase={supabase} userId={userId} userName={userName} />
+          </section>
+        )}
+
+        {/* ── 8. SOCIAL (feed das outras duplas) ─────────────── */}
+        {scene === "social" && (
+          <section className="screen active">
+            <div className="row between wrap">
+              <h2 className="neon-pink">🌐 SOCIAL</h2>
+              <span className="badge dot">SALA #2026 · AO VIVO</span>
+            </div>
+            <p className="help">O feed da galera. Curta, avalie e comente os pratos das outras duplas.</p>
+            <Social supabase={supabase} userId={userId} userName={userName} />
           </section>
         )}
       </main>
@@ -535,13 +687,18 @@ export default function Game({ userId, userName }: Props) {
             { id: "write",   emoji: "✍️",  label: "PRATO"    },
             { id: "pick",    emoji: "🍴", label: "ESCOLHA"  },
             { id: "cook",    emoji: "📸", label: "COZINHAR" },
-            { id: "gallery", emoji: "⭐", label: "GALERIA"  },
+            { id: "gallery", emoji: "🏆", label: "GALERIA"  },
+            { id: "social",  emoji: "🌐", label: "SOCIAL"   },
           ] as const
         ).map(({ id, emoji, label }) => (
           <button
             key={id}
             className={`nav-btn ${scene === id ? "on" : ""}`}
-            onClick={() => setShowGallery(id === "gallery")}
+            onClick={() => {
+              if (id === "gallery") setManualScene("gallery");
+              else if (id === "social") setManualScene("social");
+              else setManualScene(null);
+            }}
           >
             <span className="n">{emoji}</span>
             {label}
@@ -570,6 +727,7 @@ function CookScreen({
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  const [showFriendInvite, setShowFriendInvite] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   function readFile(file: File) {
@@ -598,10 +756,27 @@ function CookScreen({
         <span className="badge"><span>{country.flag}</span></span>
       </div>
       <p className="help">
-        Quando o prato{" "}
+        Mãos à obra! Quando o prato{" "}
         <strong style={{ color: "var(--ink)" }}>{chosenFood.text}</strong>{" "}
         estiver pronto, mande a foto.
       </p>
+
+      {/* Add friend banner */}
+      <div
+        className="card tight"
+        style={{ borderColor: "var(--accent)", cursor: "pointer" }}
+        onClick={() => setShowFriendInvite(true)}
+      >
+        <div className="row between">
+          <div>
+            <div className="card-title">🤝 ADICIONAR DUPLA</div>
+            <div className="help">Conecte com seu parceiro de cozinha</div>
+          </div>
+          <span className="badge" style={{ borderColor: "var(--accent)", color: "var(--accent)" }}>
+            + AMIGO
+          </span>
+        </div>
+      </div>
 
       {/* Swap option */}
       {otherFood && !swapConfirm && (
@@ -669,11 +844,18 @@ function CookScreen({
       >
         {busy ? "ENVIANDO…" : "ENVIAR PRA GALERIA ▸"}
       </button>
+
+      {showFriendInvite && (
+        <FriendInvite
+          onClose={() => setShowFriendInvite(false)}
+          onFriendAdded={() => showToast("Dupla adicionada! 🎉")}
+        />
+      )}
     </section>
   );
 }
 
-// ─── Stepper (9 elements: 5 dots + 4 bars, matching prototype) ───────────────
+// ─── Stepper ─────────────────────────────────────────────────────────────────
 function Stepper({ stepIdx }: { stepIdx: number }) {
   const els = [
     { type: "dot", n: 1 }, { type: "bar" },
