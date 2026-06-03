@@ -48,6 +48,20 @@ export async function chooseFood(matchId: string): Promise<ActionResult> {
   return { ok: true };
 }
 
+// Troca o prato escolhido pela outra opção (durante a fase de cozinhar).
+export async function swapFood(
+  matchId: string,
+  foodId: string,
+): Promise<ActionResult> {
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("swap_food", {
+    p_match_id: matchId,
+    p_food_id: foodId,
+  });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
 // Anexa a URL da foto do prato pronto e encerra a rodada.
 export async function attachPhoto(
   matchId: string,

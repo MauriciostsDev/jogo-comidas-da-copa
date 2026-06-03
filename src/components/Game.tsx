@@ -3,7 +3,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Country, Food, Match } from "@/lib/types";
-import { attachPhoto, chooseFood, drawCountry, submitFood } from "@/app/actions";
+import {
+  attachPhoto,
+  chooseFood,
+  drawCountry,
+  submitFood,
+  swapFood,
+} from "@/app/actions";
 import Gallery from "./Gallery";
 import Lobby from "./Lobby";
 
@@ -27,6 +33,7 @@ export default function Game({ userId, userName }: Props) {
   const [now, setNow] = useState(() => Date.now());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [confirmSwap, setConfirmSwap] = useState(false);
 
   const myFoodLoadedFor = useRef<string | null>(null);
   const choosingTriggered = useRef<string | null>(null);
@@ -97,6 +104,11 @@ export default function Game({ userId, userName }: Props) {
     return () => clearInterval(t);
   }, []);
 
+  // Fecha a confirmação de troca quando o prato ou a fase mudam.
+  useEffect(() => {
+    setConfirmSwap(false);
+  }, [match?.chosen_food_id, match?.status]);
+
   // ---------- Preenche meu campo com o que já escrevi ----------
   useEffect(() => {
     if (!match) {
@@ -136,6 +148,10 @@ export default function Game({ userId, userName }: Props) {
   const myFood = foods.find((f) => f.user_id === userId) ?? null;
   const partnerFood = foods.find((f) => f.user_id !== userId) ?? null;
   const bothSubmitted = foods.length >= 2;
+  // A outra opção (prato não sorteado) — só existe se os dois enviaram.
+  const otherFood = chosenFood
+    ? (foods.find((f) => f.id !== chosenFood.id) ?? null)
+    : null;
 
   const deadline = match ? new Date(match.writing_deadline).getTime() : 0;
   const secondsLeft = Math.max(0, Math.floor((deadline - now) / 1000));
@@ -170,6 +186,17 @@ export default function Game({ userId, userName }: Props) {
     const r = await submitFood(match.id, myText);
     setBusy(false);
     if (!r.ok) setError(r.error ?? "Erro ao salvar.");
+    else refresh();
+  }
+
+  async function handleSwap(foodId: string) {
+    if (!match) return;
+    setError("");
+    setBusy(true);
+    const r = await swapFood(match.id, foodId);
+    setBusy(false);
+    setConfirmSwap(false);
+    if (!r.ok) setError(r.error ?? "Erro ao trocar o prato.");
     else refresh();
   }
 
@@ -381,17 +408,79 @@ export default function Game({ userId, userName }: Props) {
             {status === "cooking" && country && chosenFood && (
               <div className="space-y-4 [animation:var(--animate-rise)]">
                 <div className="overflow-hidden rounded-[1.75rem] border border-line bg-gradient-to-b from-card-2 to-card p-6 text-center shadow-[var(--shadow-warm)]">
-                  <div className="text-6xl">{country.flag}</div>
-                  <p className="mt-3 text-xs text-muted">
+                  <p className="text-[0.7rem] font-bold tracking-[0.2em] text-saffron uppercase">
+                    {country.confederation}
+                  </p>
+                  <div className="mt-2 text-7xl">{country.flag}</div>
+                  <h3 className="mt-1 font-display text-2xl font-black text-cream">
+                    {country.name_pt}
+                  </h3>
+                  <p className="mt-4 text-xs text-muted">
                     O prato sorteado foi (escrito por {chosenFood.author_name}):
                   </p>
                   <h2 className="mt-1 font-display text-4xl font-black text-gradient">
-                    {chosenFood.text}
+                    🍲 {chosenFood.text}
                   </h2>
                   <p className="mt-4 text-sm text-cream-soft">
                     Agora é só cozinhar! 👨‍🍳 Quando ficar pronto, mande a foto.
                   </p>
                 </div>
+
+                {/* A outra opção — dá pra trocar com confirmação */}
+                {otherFood && (
+                  <div className="rounded-[1.5rem] border border-line bg-card/50 p-4">
+                    <p className="text-xs font-bold tracking-wide text-muted uppercase">
+                      A outra opção
+                    </p>
+                    <div className="mt-2 flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate font-display text-xl font-bold text-cream">
+                          🍛 {otherFood.text}
+                        </p>
+                        <p className="text-xs text-faint">
+                          por {otherFood.author_name}
+                        </p>
+                      </div>
+                      {!confirmSwap && (
+                        <button
+                          onClick={() => setConfirmSwap(true)}
+                          disabled={busy}
+                          className="shrink-0 rounded-xl border border-saffron/40 bg-saffron/10 px-4 py-2.5 text-sm font-bold text-saffron-bright transition active:scale-95 disabled:opacity-50"
+                        >
+                          Trocar
+                        </button>
+                      )}
+                    </div>
+
+                    {confirmSwap && (
+                      <div className="mt-3 rounded-xl border border-saffron/30 bg-coal/50 p-3 [animation:var(--animate-pop)]">
+                        <p className="text-sm text-cream-soft">
+                          Trocar pra{" "}
+                          <strong className="text-saffron-bright">
+                            {otherFood.text}
+                          </strong>
+                          ? Isso muda o prato da rodada pros dois.
+                        </p>
+                        <div className="mt-3 flex gap-2">
+                          <button
+                            onClick={() => setConfirmSwap(false)}
+                            disabled={busy}
+                            className="flex-1 rounded-xl border border-line py-2.5 text-sm font-bold text-muted transition active:scale-95"
+                          >
+                            Cancelar
+                          </button>
+                          <button
+                            onClick={() => handleSwap(otherFood.id)}
+                            disabled={busy}
+                            className="flex-1 rounded-xl bg-gradient-to-r from-saffron-bright to-paprika py-2.5 text-sm font-black text-ink transition active:scale-95 disabled:opacity-60"
+                          >
+                            {busy ? "Trocando…" : "Confirmar troca"}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 <label className="flex cursor-pointer flex-col items-center gap-2 rounded-[1.75rem] border-2 border-dashed border-saffron/40 bg-saffron/10 p-8 text-center transition active:scale-[0.98]">
                   <span className="text-4xl">📸</span>

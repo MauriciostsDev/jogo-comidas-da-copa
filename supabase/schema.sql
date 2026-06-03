@@ -170,6 +170,37 @@ begin
 end;
 $$;
 
+-- Troca manualmente o prato escolhido (ex.: optar pela outra opção).
+-- Só funciona durante a fase "cooking" (antes da foto fechar a rodada) e
+-- exige que o prato pertença mesmo a essa rodada.
+create or replace function swap_food(p_match_id uuid, p_food_id uuid)
+returns matches
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  m matches;
+begin
+  if not exists (
+    select 1 from foods where id = p_food_id and match_id = p_match_id
+  ) then
+    raise exception 'Esse prato não faz parte da rodada.';
+  end if;
+
+  update matches
+    set chosen_food_id = p_food_id
+    where id = p_match_id and status = 'cooking'
+    returning * into m;
+
+  if not found then
+    raise exception 'Só dá pra trocar o prato enquanto está na fase de cozinhar.';
+  end if;
+
+  return m;
+end;
+$$;
+
 -- Anexa a foto do prato pronto e fecha a rodada.
 create or replace function attach_photo(p_match_id uuid, p_url text)
 returns matches
