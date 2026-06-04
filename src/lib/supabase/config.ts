@@ -15,7 +15,7 @@ const FALLBACK_ANON_KEY =
 // Usa a variável de ambiente só se ela tiver o formato esperado; senão, fallback.
 function pickUrl(): string {
   const v = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
-  if (v && v.startsWith("http") && v.includes(".supabase.")) return v;
+  if (v && v.startsWith("http")) return v;
   return FALLBACK_URL;
 }
 
