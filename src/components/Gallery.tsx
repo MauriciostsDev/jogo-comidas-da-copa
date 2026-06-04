@@ -182,6 +182,22 @@ export function MyGallery({ supabase, userId }: Props) {
 
   return (
     <>
+      {friends.length > 0 && (
+        <div className="card tight">
+          <div className="card-title">🤝 MINHAS DUPLAS ({friends.length})</div>
+          {friends.map((f) => (
+            <div
+              key={f.user_id}
+              className="row between"
+              style={{ padding: "8px 0", borderTop: "2px solid var(--line)" }}
+            >
+              <span style={{ fontFamily: "var(--display)", fontSize: 11 }}>👤 {f.display_name}</span>
+              <span className="kbd">{f.invite_code}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="stats-row">
         <div className="stat">
           <div className="num">{mine.length}</div>
@@ -291,13 +307,12 @@ function MyGCard({
         <img src={newPreview ?? dish.photo_url} alt={dish.dish} loading="lazy" />
         <span className="flag">{dish.country_flag}</span>
         <span className="score">★ {a ? a.toFixed(1) : "—"}</span>
-        {dish.published && <span className="pub-tag">📤 NO FEED</span>}
+        {dish.published && <span className="pub-tag">📡 PUBLICADO</span>}
       </div>
       <div className="gbody">
         <div className="gdish">{dish.dish}</div>
         <div className="gby">
-          por <span className="neon">VOCÊS</span>
-          {dish.partnerName && <> · 🤝 {dish.partnerName}</>} · ❤️ {dish.likes.length}
+          {dish.partnerName ? <>🤝 com {dish.partnerName} · </> : null}❤️ {dish.likes.length}
         </div>
 
         {!editing && dish.caption && <p className="gcaption">{dish.caption}</p>}
@@ -320,7 +335,7 @@ function MyGCard({
                 onClick={togglePublish}
                 disabled={pubBusy}
               >
-                {dish.published ? "✓ NO FEED — REMOVER" : "📤 EXPORTAR AO FEED"}
+                {dish.published ? "✓ TIRAR DO FEED" : "📤 EXPORTAR AO FEED"}
               </button>
             </div>
           </>
@@ -399,7 +414,7 @@ export function Social({ supabase, userId, userName }: Props) {
     );
   }
 
-  const social = dishes.filter((d) => !d.mine && d.published);
+  const social = dishes.filter((d) => d.published);
 
   // Pódio: top 3 por média (desempate por curtidas)
   const topSorted = [...social].sort(
@@ -534,9 +549,15 @@ function PostCard({
         <button className="act cmt" onClick={() => setShowComments((v) => !v)}>
           <span className="ic">💬</span> <span>{dish.reviews.length}</span>
         </button>
-        <button className="act spacer" onClick={() => setRateOpen((v) => !v)}>
-          <span className="ic">⭐</span> {myReview ? "EDITAR" : "AVALIAR"}
-        </button>
+        {dish.mine ? (
+          <span className="act spacer" style={{ cursor: "default", color: "var(--accent)" }}>
+            <span className="ic">🍽️</span> SEU PRATO
+          </span>
+        ) : (
+          <button className="act spacer" onClick={() => setRateOpen((v) => !v)}>
+            <span className="ic">⭐</span> {myReview ? "EDITAR" : "AVALIAR"}
+          </button>
+        )}
       </div>
 
       {/* body */}
@@ -560,7 +581,7 @@ function PostCard({
           </div>
         )}
 
-        {rateOpen && (
+        {!dish.mine && rateOpen && (
           <div className="rate-box">
             <div className="rlabel">SUA NOTA</div>
             <div
