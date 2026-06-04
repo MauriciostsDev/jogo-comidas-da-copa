@@ -580,6 +580,34 @@ select.input { cursor: pointer; appearance: none; -webkit-appearance: none; }
 .rate-box .rrow { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .gby .neon { margin: 0 4px; }
 
+/* alerta: dupla ainda não avaliou o próprio prato */
+.alert-rate {
+  font-family: var(--body); font-size: 17px; line-height: 1.25;
+  background: color-mix(in srgb, var(--yellow) 22%, var(--surface-2));
+  border: 3px solid var(--yellow); color: var(--ink);
+  padding: 10px 12px;
+}
+
+/* avaliação da dupla destacada no feed (read-only) */
+.dupla-review { border-left: 3px solid var(--yellow); padding-left: 10px; }
+.dupla-review .rlabel { color: var(--yellow); margin-bottom: 4px; }
+
+/* nota de apresentação (0–10) */
+.pres-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.pres-row .rlabel { color: var(--accent-2); }
+.pres-score { font-family: var(--display); font-size: 11px; color: var(--green); }
+.pres-pick { display: flex; flex-wrap: wrap; gap: 6px; }
+.pres-btn {
+  font-family: var(--display); font-size: 12px; cursor: pointer;
+  width: 40px; height: 40px; display: grid; place-items: center;
+  border: 2px solid var(--line); background: var(--surface); color: var(--ink);
+  box-shadow: 3px 3px 0 var(--shadow); transition: transform .07s, box-shadow .07s;
+}
+.pres-btn:hover { background: var(--surface-2); }
+.pres-btn:active { transform: translate(3px,3px); box-shadow: 0 0 0 var(--shadow); }
+.pres-btn.on { background: var(--green); color: #0c2a1e; border-color: var(--green); }
+.pres-btn:disabled { opacity: .5; cursor: not-allowed; }
+
 /* ---------- Friend invite UI ---------- */
 .invite-chip {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center;

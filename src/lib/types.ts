@@ -55,6 +55,14 @@ export type Comment = {
   created_at: string;
 };
 
+export type Presentation = {
+  match_id: string;
+  user_id: string;
+  author_name: string;
+  score: number; // 0–10
+  created_at: string;
+};
+
 export type Profile = {
   user_id: string;
   display_name: string;
@@ -96,6 +104,7 @@ export type GalleryDish = {
   published: boolean;
   reviews: Review[];
   comments: Comment[];
+  presentations: Presentation[];
   likes: Like[];
   mine: boolean;
 };

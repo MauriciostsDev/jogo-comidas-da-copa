@@ -254,6 +254,34 @@ export async function addComment(
   return { ok: true };
 }
 
+// Dá (ou atualiza) a nota de apresentação 0–10 num prato do feed — qualquer um.
+export async function ratePresentation(
+  matchId: string,
+  score: number,
+): Promise<ActionResult> {
+  if (score < 0 || score > 10)
+    return { ok: false, error: "A nota de apresentação é de 0 a 10." };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Você precisa estar logado." };
+
+  const author =
+    (user.user_metadata?.full_name as string | undefined) ??
+    user.email ??
+    "Jogador";
+
+  const { error } = await supabase.rpc("rate_presentation", {
+    p_match_id: matchId,
+    p_score: score,
+    p_author: author,
+  });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
 // Toggle de curtida em um prato do feed social.
 export async function toggleLike(
   matchId: string,

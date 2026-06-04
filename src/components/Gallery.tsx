@@ -2,10 +2,18 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Comment, GalleryDish, Like, Profile, Review } from "@/lib/types";
+import type {
+  Comment,
+  GalleryDish,
+  Like,
+  Presentation,
+  Profile,
+  Review,
+} from "@/lib/types";
 import {
   addComment,
   getFriends,
+  ratePresentation,
   setPublished,
   submitReview,
   toggleLike,
@@ -20,6 +28,11 @@ type SortMode = "hot" | "new" | "top";
 function avg(reviews: Review[]) {
   if (!reviews.length) return 0;
   return reviews.reduce((s, r) => s + r.rating, 0) / reviews.length;
+}
+
+function avgPres(pres: Presentation[]) {
+  if (!pres.length) return 0;
+  return pres.reduce((s, p) => s + p.score, 0) / pres.length;
 }
 
 // Avatar emoji estável a partir de uma string
@@ -134,7 +147,6 @@ function RatingBox({
           rows={1}
           value={comment}
           onChange={(e) => setComment(e.target.value)}
-          maxLength={280}
           placeholder="Comente o prato de vocês…"
         />
         <button className="btn pink sm" onClick={send} disabled={busy}>
@@ -175,7 +187,6 @@ function CommentBox({
           rows={1}
           value={text}
           onChange={(e) => setText(e.target.value)}
-          maxLength={280}
           placeholder="Escreva um comentário…"
         />
         <button className="btn pink sm" onClick={send} disabled={busy}>
@@ -203,6 +214,7 @@ async function loadDishes(supabase: SupabaseClient, userId: string) {
        partner:profiles!matches_partner_id_fkey ( user_id, display_name ),
        reviews ( id, match_id, user_id, author_name, rating, comment, created_at ),
        comments ( id, match_id, user_id, author_name, text, created_at ),
+       presentations ( match_id, user_id, author_name, score, created_at ),
        likes ( match_id, user_id, created_at )`,
     )
     .eq("status", "done")
@@ -235,6 +247,7 @@ async function loadDishes(supabase: SupabaseClient, userId: string) {
       comments: ((m.comments as Comment[]) ?? []).sort(
         (a, b) => +new Date(a.created_at) - +new Date(b.created_at),
       ),
+      presentations: ((m.presentations as Presentation[]) ?? []),
       likes: ((m.likes as Like[]) ?? []),
       mine: myMatchIds.has(m.id) || m.partner_id === userId,
     };
@@ -255,6 +268,7 @@ function useDishes(supabase: SupabaseClient, userId: string) {
       .channel("galeria-v2")
       .on("postgres_changes", { event: "*", schema: "public", table: "reviews" }, () => load())
       .on("postgres_changes", { event: "*", schema: "public", table: "comments" }, () => load())
+      .on("postgres_changes", { event: "*", schema: "public", table: "presentations" }, () => load())
       .on("postgres_changes", { event: "*", schema: "public", table: "matches" }, () => load())
       .on("postgres_changes", { event: "*", schema: "public", table: "likes" }, () => load())
       .subscribe();
@@ -442,11 +456,22 @@ function MyGCard({
         <div className="gby">
           {dish.partnerName ? <>🤝 com {dish.partnerName} · </> : null}❤️ {dish.likes.length}
         </div>
+        {dish.presentations.length > 0 && (
+          <div className="gby">
+            🎨 Apresentação {avgPres(dish.presentations).toFixed(1)}/10 · {dish.presentations.length} voto
+            {dish.presentations.length > 1 ? "s" : ""}
+          </div>
+        )}
 
         {!editing && dish.caption && <p className="gcaption">{dish.caption}</p>}
 
         {!editing ? (
           <>
+            {!dish.reviews.some((r) => r.user_id === userId) && (
+              <div className="alert-rate">
+                ⚠️ Vocês ainda não avaliaram o próprio prato! Dê sua nota 👇
+              </div>
+            )}
             <RatingBox dish={dish} userId={userId} onChange={onChange} />
 
             {dish.reviews.length > 0 || dish.comments.length > 0 ? (
@@ -593,9 +618,13 @@ function PostCard({
 }) {
   const liked = dish.likes.some((l) => l.user_id === userId);
   const a = avg(dish.reviews);
+  const pres = avgPres(dish.presentations);
+  const myPres = dish.presentations.find((p) => p.user_id === userId) ?? null;
   const commentCount = dish.comments.length;
 
   const [showComments, setShowComments] = useState(false);
+  const [presOpen, setPresOpen] = useState(false);
+  const [presBusy, setPresBusy] = useState(false);
   const [likeBusy, setLikeBusy] = useState(false);
 
   async function handleLike() {
@@ -604,6 +633,17 @@ function PostCard({
     setLikeBusy(false);
     if (!r.ok) return;
     if (r.liked) fireConfetti(14);
+    onChange();
+  }
+
+  async function ratePres(score: number) {
+    setPresBusy(true);
+    const r = await ratePresentation(dish.match_id, score);
+    setPresBusy(false);
+    if (!r.ok) { showToast(r.error ?? "Não rolou."); return; }
+    fireConfetti(18);
+    showToast(`🎨 Apresentação: ${score}/10`);
+    setPresOpen(false);
     onChange();
   }
 
@@ -626,13 +666,16 @@ function PostCard({
         {dish.reviews.length > 0 && <span className="pscore">★ {a.toFixed(1)}</span>}
       </div>
 
-      {/* action bar — só curtir e comentar (avaliação é na galeria) */}
+      {/* action bar — curtir · comentar · nota de apresentação */}
       <div className="post-bar">
         <button className={`act like ${liked ? "on" : ""}`} onClick={handleLike} disabled={likeBusy}>
           <span className="ic">{liked ? "❤️" : "🤍"}</span> <span className="lc">{dish.likes.length}</span>
         </button>
         <button className="act cmt" onClick={() => setShowComments((v) => !v)}>
           <span className="ic">💬</span> <span>{commentCount}</span>
+        </button>
+        <button className="act spacer" onClick={() => setPresOpen((v) => !v)}>
+          <span className="ic">🎨</span> {myPres ? `SUA: ${myPres.score}` : "APRESENTAÇÃO"}
         </button>
       </div>
 
@@ -642,6 +685,42 @@ function PostCard({
           <span className="pdish">{dish.dish}</span>
           {dish.caption && <span>{dish.caption}</span>}
         </div>
+
+        {/* avaliação principal (da dupla) — só leitura no feed */}
+        {dish.reviews.length > 0 && (
+          <div className="dupla-review">
+            <div className="rlabel">⭐ AVALIAÇÃO DA DUPLA · {a.toFixed(1)}</div>
+            <ReviewsList reviews={dish.reviews} userId={userId} />
+          </div>
+        )}
+
+        {/* nota de apresentação (comunidade) */}
+        <div className="pres-row">
+          <span className="rlabel">🎨 APRESENTAÇÃO</span>
+          <span className="pres-score">
+            {dish.presentations.length
+              ? `${pres.toFixed(1)}/10 · ${dish.presentations.length} voto${dish.presentations.length > 1 ? "s" : ""}`
+              : "sem notas ainda"}
+          </span>
+        </div>
+
+        {presOpen && (
+          <div className="rate-box">
+            <div className="rlabel">DÊ A NOTA DA APRESENTAÇÃO (0–10)</div>
+            <div className="pres-pick">
+              {Array.from({ length: 11 }, (_, n) => (
+                <button
+                  key={n}
+                  className={`pres-btn ${myPres?.score === n ? "on" : ""}`}
+                  onClick={() => ratePres(n)}
+                  disabled={presBusy}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {commentCount > 0 && (
           <button className="toggle-cmt" onClick={() => setShowComments((v) => !v)}>
