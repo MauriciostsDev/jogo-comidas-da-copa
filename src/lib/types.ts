@@ -46,6 +46,15 @@ export type Like = {
   created_at: string;
 };
 
+export type Comment = {
+  id: string;
+  match_id: string;
+  user_id: string;
+  author_name: string;
+  text: string;
+  created_at: string;
+};
+
 export type Profile = {
   user_id: string;
   display_name: string;
@@ -86,6 +95,7 @@ export type GalleryDish = {
   partnerName: string | null;
   published: boolean;
   reviews: Review[];
+  comments: Comment[];
   likes: Like[];
   mine: boolean;
 };

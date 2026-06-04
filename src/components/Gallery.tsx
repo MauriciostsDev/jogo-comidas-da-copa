@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { GalleryDish, Like, Profile, Review } from "@/lib/types";
+import type { Comment, GalleryDish, Like, Profile, Review } from "@/lib/types";
 import {
+  addComment,
   getFriends,
   setPublished,
   submitReview,
@@ -67,6 +68,124 @@ function ReviewsList({ reviews, userId }: { reviews: Review[]; userId: string })
   );
 }
 
+function CommentsList({ comments, userId }: { comments: Comment[]; userId: string }) {
+  return (
+    <>
+      {comments.map((c) => (
+        <div key={c.id} className="review">
+          <span className="who">
+            💬 {c.author_name}
+            {c.user_id === userId && (
+              <span className="tiny" style={{ color: "var(--muted)", marginLeft: 6 }}>(você)</span>
+            )}
+          </span>
+          <div>{c.text}</div>
+        </div>
+      ))}
+    </>
+  );
+}
+
+// Estrelas + comentário — só quem participou avalia (na galeria).
+function RatingBox({
+  dish, userId, onChange,
+}: {
+  dish: GalleryDish;
+  userId: string;
+  onChange: () => void;
+}) {
+  const myReview = dish.reviews.find((r) => r.user_id === userId) ?? null;
+  const [stars, setStars] = useState(myReview?.rating ?? 0);
+  const [hover, setHover] = useState(0);
+  const [comment, setComment] = useState(myReview?.comment ?? "");
+  const [busy, setBusy] = useState(false);
+  const shown = hover || stars;
+
+  async function send() {
+    if (!stars) { showToast("Escolha as estrelas ⭐"); return; }
+    setBusy(true);
+    const r = await submitReview(dish.match_id, stars, comment);
+    setBusy(false);
+    if (!r.ok) { showToast(r.error ?? "Não rolou salvar."); return; }
+    fireConfetti(24);
+    showToast(`Avaliação enviada! ★${stars}`);
+    onChange();
+  }
+
+  return (
+    <div className="rate-box">
+      <div className="rlabel">{myReview ? "SUA AVALIAÇÃO" : "AVALIE O PRATO DE VOCÊS"}</div>
+      <div className="stars input-stars" onMouseLeave={() => setHover(0)}>
+        {[1, 2, 3, 4, 5].map((n) => (
+          <span
+            key={n}
+            className={`star ${n <= shown ? "on" : ""}`}
+            onMouseEnter={() => setHover(n)}
+            onClick={() => setStars(n)}
+            style={{ cursor: "pointer" }}
+          >
+            ★
+          </span>
+        ))}
+      </div>
+      <div className="rrow">
+        <textarea
+          className="input grow"
+          rows={1}
+          value={comment}
+          onChange={(e) => setComment(e.target.value)}
+          maxLength={280}
+          placeholder="Comente o prato de vocês…"
+        />
+        <button className="btn pink sm" onClick={send} disabled={busy}>
+          {busy ? "…" : myReview ? "ATUALIZAR ★" : "AVALIAR ★"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Caixa de comentário (texto, sem estrela) — usada no feed.
+function CommentBox({
+  matchId, onChange,
+}: {
+  matchId: string;
+  onChange: () => void;
+}) {
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function send() {
+    if (!text.trim()) { showToast("Escreva um comentário 💬"); return; }
+    setBusy(true);
+    const r = await addComment(matchId, text);
+    setBusy(false);
+    if (!r.ok) { showToast(r.error ?? "Não rolou."); return; }
+    setText("");
+    showToast("💬 Comentário enviado!");
+    onChange();
+  }
+
+  return (
+    <div className="rate-box">
+      <div className="rlabel">COMENTAR</div>
+      <div className="rrow">
+        <textarea
+          className="input grow"
+          rows={1}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          maxLength={280}
+          placeholder="Escreva um comentário…"
+        />
+        <button className="btn pink sm" onClick={send} disabled={busy}>
+          {busy ? "…" : "ENVIAR 💬"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Data loader (compartilhado) ─────────────────────────────────────────────
 async function loadDishes(supabase: SupabaseClient, userId: string) {
   const { data: myFoods } = await supabase
@@ -83,6 +202,7 @@ async function loadDishes(supabase: SupabaseClient, userId: string) {
        chosen:foods!matches_chosen_food_id_fkey ( text, author_name ),
        partner:profiles!matches_partner_id_fkey ( user_id, display_name ),
        reviews ( id, match_id, user_id, author_name, rating, comment, created_at ),
+       comments ( id, match_id, user_id, author_name, text, created_at ),
        likes ( match_id, user_id, created_at )`,
     )
     .eq("status", "done")
@@ -112,6 +232,9 @@ async function loadDishes(supabase: SupabaseClient, userId: string) {
       reviews: ((m.reviews as Review[]) ?? []).sort(
         (a, b) => +new Date(b.created_at) - +new Date(a.created_at),
       ),
+      comments: ((m.comments as Comment[]) ?? []).sort(
+        (a, b) => +new Date(a.created_at) - +new Date(b.created_at),
+      ),
       likes: ((m.likes as Like[]) ?? []),
       mine: myMatchIds.has(m.id) || m.partner_id === userId,
     };
@@ -131,6 +254,7 @@ function useDishes(supabase: SupabaseClient, userId: string) {
     const ch = supabase
       .channel("galeria-v2")
       .on("postgres_changes", { event: "*", schema: "public", table: "reviews" }, () => load())
+      .on("postgres_changes", { event: "*", schema: "public", table: "comments" }, () => load())
       .on("postgres_changes", { event: "*", schema: "public", table: "matches" }, () => load())
       .on("postgres_changes", { event: "*", schema: "public", table: "likes" }, () => load())
       .subscribe();
@@ -323,15 +447,19 @@ function MyGCard({
 
         {!editing ? (
           <>
-            <div className="reviews">
-              {dish.reviews.length ? (
+            <RatingBox dish={dish} userId={userId} onChange={onChange} />
+
+            {dish.reviews.length > 0 || dish.comments.length > 0 ? (
+              <div className="reviews">
                 <ReviewsList reviews={dish.reviews} userId={userId} />
-              ) : (
-                <div className="help" style={{ fontSize: 15 }}>
-                  Ainda sem avaliações — exporte pro feed pra galera avaliar 😉
-                </div>
-              )}
-            </div>
+                <CommentsList comments={dish.comments} userId={userId} />
+              </div>
+            ) : (
+              <div className="help" style={{ fontSize: 15 }}>
+                Avalie o prato e exporte pro feed pra galera comentar 😉
+              </div>
+            )}
+
             <div className="row gap8" style={{ flexWrap: "wrap" }}>
               <button className="btn ghost sm" onClick={() => setEditing(true)}>✏️ EDITAR</button>
               <button
@@ -420,16 +548,6 @@ export function Social({ supabase, userId, userName }: Props) {
 
   const social = dishes.filter((d) => d.published);
 
-  // Pódio: top 3 por média (desempate por curtidas)
-  const topSorted = [...social].sort(
-    (a, b) => avg(b.reviews) - avg(a.reviews) || b.likes.length - a.likes.length,
-  );
-  const top3 = topSorted.slice(0, 3);
-  // ordem visual: prata · ouro · bronze
-  const podiumOrder = [top3[1], top3[0], top3[2]];
-  const medals = ["🥈", "🥇", "🥉"];
-  const cls = ["p2", "p1", "p3"];
-
   const sorted = [...social].sort((a, b) => {
     if (sort === "top") return avg(b.reviews) - avg(a.reviews) || b.likes.length - a.likes.length;
     if (sort === "hot") return b.likes.length - a.likes.length;
@@ -441,32 +559,13 @@ export function Social({ supabase, userId, userName }: Props) {
       <div className="empty-gallery">
         <div className="big">🌐</div>
         <div className="pix" style={{ fontSize: 12, color: "var(--accent)" }}>FEED VAZIO</div>
-        <p className="help mt8">Quando outras duplas mandarem fotos, elas aparecem aqui pra você curtir e avaliar.</p>
+        <p className="help mt8">Quando as duplas exportarem pratos pro feed, eles aparecem aqui pra você curtir e comentar.</p>
       </div>
     );
   }
 
   return (
     <>
-      {/* Pódio da semana */}
-      {top3.some(Boolean) && (
-        <div className="podium">
-          {podiumOrder.map((p, k) =>
-            p ? (
-              <div key={p.match_id} className={`pod ${cls[k]}`}>
-                <span className="pflag">{p.country_flag}</span>
-                <span className="medal">{medals[k]}</span>
-                <span className="pemoji">🍽️</span>
-                <span className="pduo">{p.cook}</span>
-                <span className="pscore">★ {avg(p.reviews) ? avg(p.reviews).toFixed(1) : "—"}</span>
-              </div>
-            ) : (
-              <div key={k} />
-            ),
-          )}
-        </div>
-      )}
-
       {/* Filtros */}
       <div className="chips">
         <button className={`chip ${sort === "hot" ? "on" : ""}`} onClick={() => setSort("hot")}>🔥 EM ALTA</button>
@@ -485,23 +584,18 @@ export function Social({ supabase, userId, userName }: Props) {
 }
 
 function PostCard({
-  dish, userId, userName, onChange,
+  dish, userId, onChange,
 }: {
   dish: GalleryDish;
   userId: string;
   userName: string;
   onChange: () => void;
 }) {
-  const myReview = dish.reviews.find((r) => r.user_id === userId) ?? null;
   const liked = dish.likes.some((l) => l.user_id === userId);
   const a = avg(dish.reviews);
+  const commentCount = dish.comments.length;
 
   const [showComments, setShowComments] = useState(false);
-  const [rateOpen, setRateOpen] = useState(false);
-  const [stars, setStars] = useState(myReview?.rating ?? 0);
-  const [hover, setHover] = useState(0);
-  const [comment, setComment] = useState(myReview?.comment ?? "");
-  const [busy, setBusy] = useState(false);
   const [likeBusy, setLikeBusy] = useState(false);
 
   async function handleLike() {
@@ -512,19 +606,6 @@ function PostCard({
     if (r.liked) fireConfetti(14);
     onChange();
   }
-
-  async function send() {
-    if (!stars) { showToast("Escolha as estrelas ⭐"); return; }
-    setBusy(true);
-    const r = await submitReview(dish.match_id, stars, comment);
-    setBusy(false);
-    if (!r.ok) { showToast(r.error ?? "Não rolou salvar."); return; }
-    fireConfetti(24);
-    showToast(`Avaliação enviada! ★${stars}`);
-    setRateOpen(false);
-  }
-
-  const shownStars = hover || stars;
 
   return (
     <article className="post">
@@ -545,16 +626,13 @@ function PostCard({
         {dish.reviews.length > 0 && <span className="pscore">★ {a.toFixed(1)}</span>}
       </div>
 
-      {/* action bar */}
+      {/* action bar — só curtir e comentar (avaliação é na galeria) */}
       <div className="post-bar">
         <button className={`act like ${liked ? "on" : ""}`} onClick={handleLike} disabled={likeBusy}>
           <span className="ic">{liked ? "❤️" : "🤍"}</span> <span className="lc">{dish.likes.length}</span>
         </button>
         <button className="act cmt" onClick={() => setShowComments((v) => !v)}>
-          <span className="ic">💬</span> <span>{dish.reviews.length}</span>
-        </button>
-        <button className="act spacer" onClick={() => setRateOpen((v) => !v)}>
-          <span className="ic">⭐</span> {myReview ? "EDITAR" : "AVALIAR"}
+          <span className="ic">💬</span> <span>{commentCount}</span>
         </button>
       </div>
 
@@ -565,53 +643,23 @@ function PostCard({
           {dish.caption && <span>{dish.caption}</span>}
         </div>
 
-        {dish.reviews.length > 0 && (
+        {commentCount > 0 && (
           <button className="toggle-cmt" onClick={() => setShowComments((v) => !v)}>
             {showComments
               ? "ocultar comentários"
-              : `ver ${dish.reviews.length} comentário${dish.reviews.length > 1 ? "s" : ""}`}
+              : `ver ${commentCount} comentário${commentCount > 1 ? "s" : ""}`}
           </button>
         )}
 
-        {showComments && dish.reviews.length > 0 && (
-          <div className="post-reviews">
-            <ReviewsList reviews={dish.reviews} userId={userId} />
-          </div>
-        )}
-
-        {rateOpen && (
-          <div className="rate-box">
-            <div className="rlabel">SUA NOTA</div>
-            <div
-              className="stars input-stars"
-              onMouseLeave={() => setHover(0)}
-            >
-              {[1, 2, 3, 4, 5].map((n) => (
-                <span
-                  key={n}
-                  className={`star ${n <= shownStars ? "on" : ""}`}
-                  onMouseEnter={() => setHover(n)}
-                  onClick={() => setStars(n)}
-                  style={{ cursor: "pointer" }}
-                >
-                  ★
-                </span>
-              ))}
-            </div>
-            <div className="rrow">
-              <textarea
-                className="input grow"
-                rows={1}
-                value={comment}
-                onChange={(e) => setComment(e.target.value)}
-                maxLength={280}
-                placeholder="Comente o prato…"
-              />
-              <button className="btn pink sm" onClick={send} disabled={busy}>
-                {busy ? "…" : "ENVIAR ★"}
-              </button>
-            </div>
-          </div>
+        {showComments && (
+          <>
+            {commentCount > 0 && (
+              <div className="post-reviews">
+                <CommentsList comments={dish.comments} userId={userId} />
+              </div>
+            )}
+            <CommentBox matchId={dish.match_id} onChange={onChange} />
+          </>
         )}
       </div>
     </article>

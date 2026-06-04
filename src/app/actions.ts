@@ -226,6 +226,34 @@ export async function setPublished(
   return { ok: true };
 }
 
+// Adiciona um comentário (texto) num prato do feed — qualquer um logado.
+export async function addComment(
+  matchId: string,
+  text: string,
+): Promise<ActionResult> {
+  const clean = text.trim();
+  if (!clean) return { ok: false, error: "Escreva um comentário." };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Você precisa estar logado." };
+
+  const author =
+    (user.user_metadata?.full_name as string | undefined) ??
+    user.email ??
+    "Jogador";
+
+  const { error } = await supabase.rpc("add_comment", {
+    p_match_id: matchId,
+    p_text: clean,
+    p_author: author,
+  });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
 // Toggle de curtida em um prato do feed social.
 export async function toggleLike(
   matchId: string,

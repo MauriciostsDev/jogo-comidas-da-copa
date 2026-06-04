@@ -409,17 +409,21 @@ export default function Game({ userId, userName }: Props) {
   const status = match?.status ?? null;
   const canDraw = !match || status === "done";
 
-  // Active scene
-  let scene: Scene;
-  if (manualScene) { scene = manualScene; }
-  else if (drawPhase === "spinning" || drawPhase === "result") { scene = "draw"; }
-  else if (status === "writing") { scene = "write"; }
-  else if (status === "cooking" && !pickConfirmed) { scene = "pick"; }
-  else if (status === "cooking" && pickConfirmed) { scene = "cook"; }
-  else if (!room) { scene = "rooms"; }
-  else { scene = "lobby"; }
+  // Cena do FLUXO do jogo (independente de abrir Galeria/Social pela nav).
+  let flowScene: Scene;
+  if (drawPhase === "spinning" || drawPhase === "result") { flowScene = "draw"; }
+  else if (status === "writing") { flowScene = "write"; }
+  else if (status === "cooking" && !pickConfirmed) { flowScene = "pick"; }
+  else if (status === "cooking" && pickConfirmed) { flowScene = "cook"; }
+  else if (!room) { flowScene = "rooms"; }
+  else { flowScene = "lobby"; }
 
-  const stepIdx = STEP_OF[scene] ?? 0;
+  // Cena exibida: Galeria/Social são abas manuais e NÃO mexem no stepper.
+  const scene: Scene = manualScene ?? flowScene;
+
+  // O stepper só avança conforme o fluxo do jogo (entrar/criar sala → lobby →
+  // sorteio → prato → cozinhar), nunca ao espiar Galeria/Social.
+  const stepIdx = STEP_OF[flowScene] ?? 0;
 
   return (
     <>
