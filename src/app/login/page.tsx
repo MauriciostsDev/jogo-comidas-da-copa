@@ -25,6 +25,7 @@ export default function LoginPage() {
   const [mode, setMode] = useState<"login" | "signup" | "forgot">("login");
   const action = mode === "login" ? login : mode === "signup" ? signup : forgotPassword;
   const [state, formAction, pending] = useActionState(action, initial);
+  const [showPassword, setShowPassword] = useState(false);
 
   function switchMode(e: React.MouseEvent) {
     e.preventDefault();
@@ -120,14 +121,30 @@ export default function LoginPage() {
             {mode !== "forgot" && (
               <div className="field">
                 <label className="label">SENHA</label>
-                <input
-                  className="input"
-                  name="password"
-                  type="password"
-                  placeholder="••••••••"
-                  autoComplete={mode === "login" ? "current-password" : "new-password"}
-                  required
-                />
+                <div style={{ position: "relative" }}>
+                  <input
+                    className="input"
+                    name="password"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="••••••••"
+                    autoComplete={mode === "login" ? "current-password" : "new-password"}
+                    required
+                    style={{ paddingRight: 40 }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    style={{
+                      position: "absolute", right: 10, top: "50%",
+                      transform: "translateY(-50%)", background: "none",
+                      border: "none", cursor: "pointer", fontSize: 16,
+                      color: "var(--muted)", padding: 0,
+                    }}
+                    aria-label={showPassword ? "Ocultar senha" : "Ver senha"}
+                  >
+                    {showPassword ? "🙈" : "👁️"}
+                  </button>
+                </div>
               </div>
             )}
 
