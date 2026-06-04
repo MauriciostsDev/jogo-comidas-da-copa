@@ -43,7 +43,7 @@ export default function LoginPage() {
         </div>
       </header>
 
-      <main className="stage center">
+      <main className="stage center" style={{ maxWidth: 1040 }}>
         {/* Stepper — login = step 0 */}
         <div className="steps">
           {[
@@ -69,8 +69,11 @@ export default function LoginPage() {
         </h1>
         <p className="lead">Sorteie · Cozinhe · Avalie 🏆</p>
 
+        <div className="login-row">
+        {/* Coluna esquerda: login */}
+        <div className="login-col">
         {/* Card de auth */}
-        <div className="card bolts accent" style={{ width: "100%", maxWidth: 420, marginTop: 8 }}>
+        <div className="card bolts accent" style={{ width: "100%", maxWidth: 420 }}>
           <div className="card-title">
             {mode === "login" ? "INSERT COIN" : "NEW PLAYER"}
           </div>
@@ -170,11 +173,12 @@ export default function LoginPage() {
         <p className="tiny" style={{ color: "var(--muted)", marginTop: 18 }}>
           🔒 Autenticação segura
         </p>
+        </div>{/* fim coluna login */}
 
-        {/* Dashboard: como funciona o jogo */}
+        {/* Coluna direita: como funciona o jogo */}
         <div
-          className="card bolts"
-          style={{ width: "100%", maxWidth: 520, marginTop: 24, textAlign: "left" }}
+          className="card bolts howto-card"
+          style={{ width: "100%", maxWidth: 460, textAlign: "left" }}
         >
           <div className="card-title">🎮 COMO FUNCIONA</div>
           <p className="help" style={{ marginBottom: 12 }}>
@@ -208,7 +212,8 @@ export default function LoginPage() {
           <p className="tiny" style={{ color: "var(--muted)", marginTop: 12 }}>
             ⚽ Entre pra começar — sua dupla entra com o código da sala.
           </p>
-        </div>
+        </div>{/* fim coluna como funciona */}
+        </div>{/* fim login-row */}
       </main>
     </>
   );

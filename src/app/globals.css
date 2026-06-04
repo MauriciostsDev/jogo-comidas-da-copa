@@ -479,6 +479,22 @@ select.input { cursor: pointer; appearance: none; -webkit-appearance: none; }
 .flags-marquee div { display: flex; gap: 18px; animation: marquee 22s linear infinite; flex: 0 0 auto; }
 .help { color: var(--muted); font-size: 17px; }
 
+/* login + "como funciona" lado a lado (empilha no mobile) */
+.login-row {
+  display: flex; gap: 22px; width: 100%;
+  align-items: flex-start; justify-content: center; flex-wrap: wrap;
+  margin-top: 10px;
+}
+.login-col {
+  flex: 1 1 320px; max-width: 420px;
+  display: flex; flex-direction: column; align-items: center;
+}
+.howto-card { flex: 1 1 320px; align-self: stretch; }
+@media (max-width: 820px) {
+  .login-row { gap: 18px; }
+  .login-col, .howto-card { flex-basis: 100%; max-width: 460px; }
+}
+
 /* dashboard "como funciona" — número do passo */
 .howto-num {
   flex: 0 0 28px; width: 28px; height: 28px; display: grid; place-items: center;
