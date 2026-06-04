@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
-import { login, signup, type AuthState } from "./actions";
+import { login, signup, forgotPassword, type AuthState } from "./actions";
 import { TEAMS } from "@/lib/teams";
 
 const initial: AuthState = {};
@@ -22,13 +22,18 @@ const HOW_STEPS: { emoji: string; title: string; text: string }[] = [
 ];
 
 export default function LoginPage() {
-  const [mode, setMode] = useState<"login" | "signup">("login");
-  const action = mode === "login" ? login : signup;
+  const [mode, setMode] = useState<"login" | "signup" | "forgot">("login");
+  const action = mode === "login" ? login : mode === "signup" ? signup : forgotPassword;
   const [state, formAction, pending] = useActionState(action, initial);
 
   function switchMode(e: React.MouseEvent) {
     e.preventDefault();
     setMode((m) => (m === "login" ? "signup" : "login"));
+  }
+
+  function goForgot(e: React.MouseEvent) {
+    e.preventDefault();
+    setMode("forgot");
   }
 
   return (
@@ -75,12 +80,14 @@ export default function LoginPage() {
         {/* Card de auth */}
         <div className="card bolts accent" style={{ width: "100%", maxWidth: 420 }}>
           <div className="card-title">
-            {mode === "login" ? "INSERT COIN" : "NEW PLAYER"}
+            {mode === "login" ? "INSERT COIN" : mode === "signup" ? "NEW PLAYER" : "RESET SENHA"}
           </div>
           <p className="help" style={{ marginBottom: 14 }}>
             {mode === "login"
               ? "Faça login pra entrar na sala"
-              : "Crie seu jogador pra começar"}
+              : mode === "signup"
+              ? "Crie seu jogador pra começar"
+              : "Digite seu email para receber o link de redefinição"}
           </p>
 
           <form action={formAction} className="col" style={{ textAlign: "left" }}>
@@ -110,64 +117,62 @@ export default function LoginPage() {
               />
             </div>
 
-            <div className="field">
-              <label className="label">SENHA</label>
-              <input
-                className="input"
-                name="password"
-                type="password"
-                placeholder="••••••••"
-                autoComplete={mode === "login" ? "current-password" : "new-password"}
-                required
-              />
-            </div>
+            {mode !== "forgot" && (
+              <div className="field">
+                <label className="label">SENHA</label>
+                <input
+                  className="input"
+                  name="password"
+                  type="password"
+                  placeholder="••••••••"
+                  autoComplete={mode === "login" ? "current-password" : "new-password"}
+                  required
+                />
+              </div>
+            )}
 
             {state.error && (
-              <p
-                className="tiny"
-                style={{ color: "var(--pink)", marginTop: 4 }}
-              >
+              <p className="tiny" style={{ color: "var(--pink)", marginTop: 4 }}>
                 ⚠ {state.error}
               </p>
             )}
             {state.message && (
-              <p
-                className="tiny"
-                style={{ color: "var(--green)", marginTop: 4 }}
-              >
+              <p className="tiny" style={{ color: "var(--green)", marginTop: 4 }}>
                 ✓ {state.message}
               </p>
             )}
 
-            <button
-              type="submit"
-              disabled={pending}
-              className="btn block lg mt8"
-            >
+            <button type="submit" disabled={pending} className="btn block lg mt8">
               {pending
                 ? "AGUARDE…"
                 : mode === "login"
-                  ? "ENTRAR ▸"
-                  : "CRIAR CONTA ▸"}
+                ? "ENTRAR ▸"
+                : mode === "signup"
+                ? "CRIAR CONTA ▸"
+                : "ENVIAR LINK ▸"}
             </button>
           </form>
 
           <div className="divider mt20">OU</div>
-          <a
-            href="#"
-            onClick={switchMode}
-            className="tiny"
-            style={{
-              display: "block",
-              textAlign: "center",
-              color: "var(--accent-2)",
-              marginTop: 12,
-            }}
-          >
-            {mode === "login"
-              ? "Não tem conta? CADASTRE-SE"
-              : "Já tem conta? ENTRAR"}
-          </a>
+          {mode === "forgot" ? (
+            <a href="#" onClick={(e) => { e.preventDefault(); setMode("login"); }}
+              className="tiny" style={{ display: "block", textAlign: "center", color: "var(--accent-2)", marginTop: 12 }}>
+              Voltar para LOGIN
+            </a>
+          ) : (
+            <>
+              <a href="#" onClick={switchMode} className="tiny"
+                style={{ display: "block", textAlign: "center", color: "var(--accent-2)", marginTop: 12 }}>
+                {mode === "login" ? "Não tem conta? CADASTRE-SE" : "Já tem conta? ENTRAR"}
+              </a>
+              {mode === "login" && (
+                <a href="#" onClick={goForgot} className="tiny"
+                  style={{ display: "block", textAlign: "center", color: "var(--muted)", marginTop: 8 }}>
+                  Esqueci minha senha
+                </a>
+              )}
+            </>
+          )}
         </div>
 
         <p className="tiny" style={{ color: "var(--muted)", marginTop: 18 }}>

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { headers } from "next/headers";
 
 export type AuthState = { error?: string; message?: string };
 
@@ -81,4 +82,46 @@ export async function signup(
     message:
       "Conta criada! Confirme pelo link enviado ao seu email e depois faça login.",
   };
+}
+
+export async function forgotPassword(
+  _prev: AuthState,
+  formData: FormData,
+): Promise<AuthState> {
+  const email = String(formData.get("email") ?? "").trim();
+
+  if (!email) return { error: "Informe seu email." };
+
+  const headersList = await headers();
+  const origin = headersList.get("origin") ?? "http://localhost:3000";
+
+  const supabase = await createClient();
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${origin}/auth/reset-password`,
+  });
+
+  if (error) return { error: "Não foi possível enviar o email. Tente de novo." };
+
+  return { message: "Email enviado! Verifique sua caixa de entrada e clique no link para redefinir a senha." };
+}
+
+export async function updatePassword(
+  _prev: AuthState,
+  formData: FormData,
+): Promise<AuthState> {
+  const password = String(formData.get("password") ?? "");
+  const confirm = String(formData.get("confirm") ?? "");
+
+  if (!password || password.length < 6)
+    return { error: "A senha precisa ter ao menos 6 caracteres." };
+  if (password !== confirm)
+    return { error: "As senhas não coincidem." };
+
+  const supabase = await createClient();
+  const { error } = await supabase.auth.updateUser({ password });
+
+  if (error) return { error: "Não foi possível atualizar a senha. O link pode ter expirado." };
+
+  revalidatePath("/", "layout");
+  redirect("/");
 }
