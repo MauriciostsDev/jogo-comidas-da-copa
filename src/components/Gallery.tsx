@@ -471,7 +471,7 @@ function MyGCard({
       <div className="gbody">
         <div className="gdish">{dish.dish}</div>
         <div className="gby">
-          {dish.partnerName ? <>🤝 com {dish.partnerName} · </> : null}❤️ {dish.likes.length}
+          {dish.partnerName ? <>🤝 com {dish.partnerName} · </> : null}{dish.likes.length} curtidas
         </div>
         {dish.presentations.length > 0 && (
           <div className="gby">
