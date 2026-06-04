@@ -412,10 +412,12 @@ textarea.input { resize: none; line-height: 1.3; }
 }
 .gcard:hover { transform: translate(-2px,-2px); box-shadow: 8px 8px 0 var(--shadow); }
 .gphoto {
-  aspect-ratio: 4/3; background: var(--surface-2);
-  position: relative; overflow: hidden; display: grid; place-items: center;
+  position: relative; width: 100%; overflow: hidden;
+  background: var(--surface-2);
 }
-.gphoto img { width: 100%; height: 100%; object-fit: cover; }
+/* caixa 4:3 robusta (não depende de aspect-ratio em webviews antigos) */
+.gphoto::before { content: ""; display: block; padding-top: 75%; }
+.gphoto img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .gphoto .flag { position: absolute; top: 8px; left: 8px; font-size: 26px; filter: drop-shadow(2px 2px 0 var(--shadow)); }
 .gphoto .score {
   position: absolute; bottom: 8px; right: 8px;
@@ -546,11 +548,14 @@ select.input { cursor: pointer; appearance: none; -webkit-appearance: none; }
 .post-head .pduo { font-family: var(--display); font-size: 11px; }
 .post-head .psub { color: var(--muted); font-size: 16px; display: flex; align-items: center; gap: 6px; }
 .post-photo {
-  aspect-ratio: 1/1; background: var(--surface-2); position: relative; display: grid; place-items: center;
+  position: relative; width: 100%; overflow: hidden;
+  background: var(--surface-2);
   border-top: 3px solid var(--line); border-bottom: 3px solid var(--line);
 }
-.post-photo .pbig { font-size: 96px; line-height: 1; filter: drop-shadow(3px 3px 0 var(--shadow)); }
-.post-photo img { width: 100%; height: 100%; object-fit: cover; }
+/* caixa 1:1 robusta (não depende de aspect-ratio em webviews antigos) */
+.post-photo::before { content: ""; display: block; padding-top: 100%; }
+.post-photo .pbig { position: absolute; inset: 0; display: grid; place-items: center; font-size: 96px; line-height: 1; filter: drop-shadow(3px 3px 0 var(--shadow)); }
+.post-photo img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .post-photo .pflag { position: absolute; top: 10px; left: 10px; font-size: 28px; filter: drop-shadow(2px 2px 0 var(--shadow)); }
 .post-photo .pscore { position: absolute; bottom: 10px; right: 10px; font-family: var(--display); font-size: 10px; background: var(--surface); border: 2px solid var(--line); padding: 5px 7px; color: var(--yellow); }
 .post-bar { display: flex; align-items: center; gap: 6px; padding: 12px 14px 4px; }
