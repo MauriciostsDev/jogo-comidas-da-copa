@@ -76,18 +76,9 @@ body {
   transition: background-color .3s, color .3s;
 }
 
-/* CRT scanlines — sem mix-blend-mode para não prejudicar fotos */
-body::before {
-  content: "";
-  position: fixed; inset: 0; z-index: 100;
-  pointer-events: none;
-  background: repeating-linear-gradient(0deg, transparent 0 2px, var(--scan) 2px 4px);
-  opacity: .7;
-}
-/* Fotos ficam acima do overlay de scanlines */
-.preview-wrap,
-.gphoto,
-.post-photo { position: relative; z-index: 101; }
+/* CRT scanlines removidas — z-index com stacking contexts de parents
+   (transform em .gcard hover, animation em .post) impede exclusão confiável
+   das fotos. O efeito retro é mantido pelo grid de pixels (body::after) e neons. */
 
 /* pixel grid overlay */
 body::after {
