@@ -286,7 +286,9 @@ export default function Game({ userId, userName }: Props) {
   useEffect(() => {
     if (match?.id && match.id !== lastMatchId.current) {
       lastMatchId.current = match.id;
-      setPickConfirmed(false);
+      // Se já clicou em "BORA COZINHAR" nessa rodada, mantém na tela de
+      // cozinhar mesmo após recarregar (não volta pra escolha do prato).
+      setPickConfirmed(alreadyShown(`cc-cook-${match.id}`));
       setSwapConfirm(false);
     }
   }, [match?.id]);
@@ -768,7 +770,11 @@ export default function Game({ userId, userName }: Props) {
 
             <button
               className="btn lg yellow mt8"
-              onClick={() => { setPickConfirmed(true); fireConfetti(30); }}
+              onClick={() => {
+                if (match) markShown(`cc-cook-${match.id}`);
+                setPickConfirmed(true);
+                fireConfetti(30);
+              }}
             >
               BORA COZINHAR 🔥
             </button>
