@@ -93,19 +93,6 @@ export default function Rooms({ onRoomReady, onSoloReady }: Props) {
         Jogue em dupla com um amigo ou explore sozinho as culinárias do mundo.
       </p>
 
-      {/* SOLO */}
-      <div className="card bolts" style={{ width: "100%", maxWidth: 440, marginTop: 14, textAlign: "left" }}>
-        <div className="card-title" style={{ color: "var(--yellow)" }}>🧑‍🍳 MODO SOLO</div>
-        <p className="help" style={{ marginBottom: 12 }}>
-          Sorteie um país, escreva seu prato e cozinhe sozinho. Sem precisar de dupla.
-        </p>
-        <button className="btn block yellow lg" onClick={onSoloReady}>
-          JOGAR SOLO ▸
-        </button>
-      </div>
-
-      <div className="divider" style={{ width: "100%", maxWidth: 440, margin: "18px 0" }}>OU EM DUPLA</div>
-
       {/* abas criar / entrar */}
       <div className="chips" style={{ justifyContent: "center" }}>
         <button
@@ -209,6 +196,19 @@ export default function Rooms({ onRoomReady, onSoloReady }: Props) {
           </p>
         </div>
       )}
+
+      <div className="divider" style={{ width: "100%", maxWidth: 440, margin: "18px 0" }}>OU</div>
+
+      {/* SOLO */}
+      <div className="card bolts" style={{ width: "100%", maxWidth: 440, textAlign: "left" }}>
+        <div className="card-title" style={{ color: "var(--yellow)" }}>🧑‍🍳 MODO SOLO</div>
+        <p className="help" style={{ marginBottom: 12 }}>
+          Sorteie um país, escreva seu prato e cozinhe sozinho. Sem precisar de dupla.
+        </p>
+        <button className="btn block yellow lg" onClick={onSoloReady}>
+          JOGAR SOLO ▸
+        </button>
+      </div>
     </section>
   );
 }

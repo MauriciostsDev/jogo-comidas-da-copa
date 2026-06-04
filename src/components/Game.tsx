@@ -537,7 +537,13 @@ export default function Game({ userId, userName }: Props) {
         {scene === "rooms" && roomLoaded && (
           <Rooms
             onRoomReady={(r) => setRoom(r)}
-            onSoloReady={() => { setIsSolo(true); setRoomLoaded(true); }}
+            onSoloReady={() => {
+          // Fecha sala vazia antes de entrar no modo solo
+          if (room && !room.guest_id) leaveRoom(room.id);
+          setRoom(null);
+          setIsSolo(true);
+          setRoomLoaded(true);
+        }}
           />
         )}
 

@@ -5,7 +5,7 @@ import type { RealtimeChannel, SupabaseClient } from "@supabase/supabase-js";
 import type { Profile, Room } from "@/lib/types";
 import { fireConfetti } from "@/lib/confetti";
 import { showToast } from "@/lib/toast";
-import { getOrCreateProfile } from "@/app/actions";
+import { getOrCreateProfile, leaveRoom } from "@/app/actions";
 import FriendInvite from "./FriendInvite";
 
 type Player = { userId: string; userName: string; ready: boolean };
@@ -62,6 +62,15 @@ export default function Lobby({
       if (r.ok && r.profile) setMyProfile(r.profile);
     });
   }, []);
+
+  // Fecha sala vazia (sem guest) quando o host desmonta o lobby sem clicar "sair"
+  useEffect(() => {
+    return () => {
+      if (room && room.host_id === userId && !room.guest_id) {
+        leaveRoom(room.id);
+      }
+    };
+  }, [room, userId]);
 
   useEffect(() => {
     const channel = supabase.channel(`sala-${roomCode ?? "2026"}`, {
