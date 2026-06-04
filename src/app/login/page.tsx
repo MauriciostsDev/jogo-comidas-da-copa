@@ -204,6 +204,31 @@ export default function LoginPage() {
           </p>
         </div>{/* fim coluna como funciona */}
         </div>{/* fim login-row */}
+
+        {/* Créditos */}
+        <div style={{ marginTop: 28, textAlign: "center" }}>
+          <p className="tiny" style={{ color: "var(--muted)", marginBottom: 6 }}>DESENVOLVIDO POR</p>
+          <div style={{ display: "flex", gap: 16, justifyContent: "center", flexWrap: "wrap" }}>
+            <a
+              href="https://github.com/mauriciostsdev"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="tiny"
+              style={{ color: "var(--accent)", textDecoration: "none", display: "flex", alignItems: "center", gap: 6 }}
+            >
+              <span>⚡</span> mauriciostsdev
+            </a>
+            <a
+              href="https://github.com/mauriciosts"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="tiny"
+              style={{ color: "var(--accent)", textDecoration: "none", display: "flex", alignItems: "center", gap: 6 }}
+            >
+              <span>⚡</span> mauriciosts
+            </a>
+          </div>
+        </div>
       </main>
     </>
   );

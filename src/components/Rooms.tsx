@@ -72,7 +72,7 @@ export default function Rooms({ onRoomReady, onSoloReady }: Props) {
           Jogue com alguém — crie uma sala e mande o código, ou entre na sala de um amigo.
         </p>
 
-        <div className="chips" style={{ justifyContent: "center", marginBottom: 14 }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center", marginBottom: 14 }}>
           <button className={`chip ${tab === "create" ? "on" : ""}`} onClick={() => setTab("create")}>
             ➕ CRIAR SALA
           </button>

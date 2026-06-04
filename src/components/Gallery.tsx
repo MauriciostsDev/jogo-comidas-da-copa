@@ -363,7 +363,7 @@ export function MyGallery({ supabase, userId }: Props) {
         </div>
         <div className="stat">
           <div className="num">{curtidas}</div>
-          <div className="lbl">❤️ CURTIDAS</div>
+          <div className="lbl">CURTIDAS</div>
         </div>
       </div>
 
