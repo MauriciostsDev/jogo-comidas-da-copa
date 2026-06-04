@@ -8,10 +8,18 @@ export type RoomResult = { ok: boolean; room?: Room; error?: string };
 export type ActionResult = { ok: boolean; error?: string };
 export type ProfileResult = { ok: boolean; profile?: Profile; error?: string };
 
-// Sorteia um país e abre a rodada de 7 minutos.
+// Sorteia um país e abre a rodada de 7 minutos (modo dupla).
 export async function drawCountry(): Promise<ActionResult> {
   const supabase = await createClient();
   const { error } = await supabase.rpc("draw_country");
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+// Sorteia um país para o modo solo (match individual).
+export async function drawCountrySolo(): Promise<ActionResult> {
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("draw_country_solo");
   if (error) return { ok: false, error: error.message };
   return { ok: true };
 }

@@ -7,11 +7,11 @@ import { fireConfetti } from "@/lib/confetti";
 import { showToast } from "@/lib/toast";
 
 type Props = {
-  // Chamado quando a sala está pronta (host abriu, ou guest entrou).
   onRoomReady: (room: Room) => void;
+  onSoloReady: () => void;
 };
 
-export default function Rooms({ onRoomReady }: Props) {
+export default function Rooms({ onRoomReady, onSoloReady }: Props) {
   const [tab, setTab] = useState<"create" | "join">("create");
 
   // criar
@@ -88,13 +88,26 @@ export default function Rooms({ onRoomReady }: Props) {
 
   return (
     <section className="screen active center">
-      <h2 className="neon">🎮 SALA DE JOGO</h2>
+      <h2 className="neon">🎮 MODO DE JOGO</h2>
       <p className="help">
-        Crie uma sala e mande o código pra sua dupla — ou entre na sala dela.
+        Jogue em dupla com um amigo ou explore sozinho as culinárias do mundo.
       </p>
 
+      {/* SOLO */}
+      <div className="card bolts" style={{ width: "100%", maxWidth: 440, marginTop: 14, textAlign: "left" }}>
+        <div className="card-title" style={{ color: "var(--yellow)" }}>🧑‍🍳 MODO SOLO</div>
+        <p className="help" style={{ marginBottom: 12 }}>
+          Sorteie um país, escreva seu prato e cozinhe sozinho. Sem precisar de dupla.
+        </p>
+        <button className="btn block yellow lg" onClick={onSoloReady}>
+          JOGAR SOLO ▸
+        </button>
+      </div>
+
+      <div className="divider" style={{ width: "100%", maxWidth: 440, margin: "18px 0" }}>OU EM DUPLA</div>
+
       {/* abas criar / entrar */}
-      <div className="chips" style={{ marginTop: 8, justifyContent: "center" }}>
+      <div className="chips" style={{ justifyContent: "center" }}>
         <button
           className={`chip ${tab === "create" ? "on" : ""}`}
           onClick={() => setTab("create")}

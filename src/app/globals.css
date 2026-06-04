@@ -76,15 +76,18 @@ body {
   transition: background-color .3s, color .3s;
 }
 
-/* CRT scanlines */
+/* CRT scanlines — sem mix-blend-mode para não prejudicar fotos */
 body::before {
   content: "";
-  position: fixed; inset: 0; z-index: 9999;
+  position: fixed; inset: 0; z-index: 100;
   pointer-events: none;
   background: repeating-linear-gradient(0deg, transparent 0 2px, var(--scan) 2px 4px);
-  mix-blend-mode: multiply;
-  opacity: .55;
+  opacity: .7;
 }
+/* Fotos ficam acima do overlay de scanlines */
+.preview-wrap,
+.gphoto,
+.post-photo { position: relative; z-index: 101; }
 
 /* pixel grid overlay */
 body::after {

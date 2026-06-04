@@ -7,6 +7,7 @@ import {
   attachPhoto,
   chooseFood,
   drawCountry,
+  drawCountrySolo,
   getMyRoom,
   leaveRoom,
   submitFood,
@@ -107,12 +108,16 @@ export default function Game({ userId, userName }: Props) {
   const [room, setRoom] = useState<Room | null>(null);
   const [roomLoaded, setRoomLoaded] = useState(false);
 
+  // Modo solo — joga sem dupla
+  const [isSolo, setIsSolo] = useState(false);
+
   // Country exclusion (lobby feature)
   const [countriesToExclude, setCountriesToExclude] = useState<ExcludableCountry[]>([]);
   const [exclusions, setExclusions] = useState<Set<number>>(new Set());
 
   const myFoodLoadedFor = useRef<string | null>(null);
   const choosingTriggered = useRef<string | null>(null);
+  const roomRef = useRef<Room | null>(null);
 
   // ── Load game state ──────────────────────────────────────────
   const refresh = useCallback(async () => {
@@ -122,7 +127,6 @@ export default function Game({ userId, userName }: Props) {
       .eq("drawn", true);
     setDrawnCount(count ?? 0);
 
-    // Find the most recent active match where this user has a food, OR the global last match
     const { data: myFoodMatches } = await supabase
       .from("foods")
       .select("match_id")
@@ -144,8 +148,8 @@ export default function Game({ userId, userName }: Props) {
       m = activeOwn ?? null;
     }
 
-    // Fallback to last global non-done match (for users without a match yet)
-    if (!m) {
+    // Fallback global — só para quem está em uma sala (dupla), nunca para novos usuários
+    if (!m && !isSolo && roomRef.current !== null) {
       const { data: activeGlobal } = await supabase
         .from("matches")
         .select("*")
@@ -167,7 +171,7 @@ export default function Game({ userId, userName }: Props) {
     setCountry(c ?? null);
     setFoods(f ?? []);
     setChosenFood((f ?? []).find((x) => x.id === m.chosen_food_id) ?? null);
-  }, [supabase, userId]);
+  }, [supabase, userId, isSolo]);
 
   // ── Load country-exclusion candidates for lobby ─────────────
   const loadExcludable = useCallback(async () => {
@@ -273,10 +277,13 @@ export default function Game({ userId, userName }: Props) {
   // ── Retoma a sala ativa (host/guest) após reload ─────────────
   useEffect(() => {
     getMyRoom().then((r) => {
-      if (r.ok && r.room) setRoom(r.room);
+      if (r.ok && r.room) { setRoom(r.room); roomRef.current = r.room; }
       setRoomLoaded(true);
     });
   }, []);
+
+  // Mantém roomRef sincronizado com room state
+  useEffect(() => { roomRef.current = room; }, [room]);
 
   async function handleLeaveRoom() {
     const current = room;
@@ -326,7 +333,8 @@ export default function Game({ userId, userName }: Props) {
 
   const myFood = foods.find((f) => f.user_id === userId) ?? null;
   const partnerFood = foods.find((f) => f.user_id !== userId) ?? null;
-  const bothSubmitted = foods.length >= 2;
+  // Solo: basta 1 prato (o próprio). Dupla: precisa dos dois.
+  const bothSubmitted = isSolo ? !!myFood : foods.length >= 2;
   const otherFood = chosenFood ? (foods.find((f) => f.id !== chosenFood.id) ?? null) : null;
 
   const deadline = match ? new Date(match.writing_deadline).getTime() : 0;
@@ -432,7 +440,7 @@ export default function Game({ userId, userName }: Props) {
     setReelOffset(0);
     setReelAnimating(false);
     setDrawPhase("spinning");
-    const r = await drawCountry();
+    const r = isSolo ? await drawCountrySolo() : await drawCountry();
     setBusy(false);
     if (!r.ok) { setError(r.error ?? "Erro ao sortear."); setDrawPhase("idle"); return; }
     await refresh();
@@ -488,7 +496,7 @@ export default function Game({ userId, userName }: Props) {
   else if (status === "writing") { flowScene = "write"; }
   else if (status === "cooking" && !pickConfirmed) { flowScene = "pick"; }
   else if (status === "cooking" && pickConfirmed) { flowScene = "cook"; }
-  else if (!room) { flowScene = "rooms"; }
+  else if (!isSolo && !room) { flowScene = "rooms"; }
   else { flowScene = "lobby"; }
 
   // Cena exibida: Galeria/Social são abas manuais e NÃO mexem no stepper.
@@ -527,11 +535,56 @@ export default function Game({ userId, userName }: Props) {
 
         {/* ── 1b. SALA DE JOGO (criar / entrar com código) ───── */}
         {scene === "rooms" && roomLoaded && (
-          <Rooms onRoomReady={(r) => setRoom(r)} />
+          <Rooms
+            onRoomReady={(r) => setRoom(r)}
+            onSoloReady={() => { setIsSolo(true); setRoomLoaded(true); }}
+          />
         )}
 
-        {/* ── 1&2. LOBBY ─────────────────────────────────────── */}
-        {scene === "lobby" && (
+        {/* ── 1&2. LOBBY SOLO ────────────────────────────────── */}
+        {scene === "lobby" && isSolo && (
+          <section className="screen active center">
+            <h2 className="neon-yellow">🧑‍🍳 MODO SOLO</h2>
+            {status === "done" && country && chosenFood ? (
+              <div className="card accent bolts" style={{ textAlign: "center", width: "100%", maxWidth: 440 }}>
+                <div className="card-title">RODADA CONCLUÍDA 🎉</div>
+                {match?.photo_url && (
+                  <div className="preview-wrap" style={{ marginBottom: 12 }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={match.photo_url} alt={chosenFood.text} style={{ aspectRatio: "4/3", objectFit: "cover", width: "100%" }} />
+                  </div>
+                )}
+                <div className="result-flag">{country.flag}</div>
+                <h2 style={{ marginTop: 8 }}>{country.name_pt}</h2>
+                <p className="lead" style={{ marginTop: 4 }}>🍲 {chosenFood.text}</p>
+              </div>
+            ) : (
+              <div className="card bolts" style={{ width: "100%", maxWidth: 440, textAlign: "center" }}>
+                <div style={{ fontSize: 48, marginBottom: 12 }}>🧑‍🍳</div>
+                <p className="help">Sorteie um país da Copa 2026, escreva um prato típico e cozinhe!</p>
+              </div>
+            )}
+            {canDraw && (
+              <button
+                className="btn lg yellow mt8"
+                disabled={busy || drawnCount >= TOTAL_PAISES}
+                onClick={handleDraw}
+              >
+                {drawnCount >= TOTAL_PAISES ? "ACABARAM AS SELEÇÕES 🏁" : busy ? "SORTEANDO…" : "SORTEAR PAÍS 🎲"}
+              </button>
+            )}
+            <button
+              className="tiny mt8"
+              style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer" }}
+              onClick={() => { setIsSolo(false); setRoom(null); }}
+            >
+              ← voltar ao menu
+            </button>
+          </section>
+        )}
+
+        {/* ── 1&2. LOBBY DUPLA ───────────────────────────────── */}
+        {scene === "lobby" && !isSolo && (
           <>
             {status === "done" && country && chosenFood && (
               <div className="card accent bolts" style={{ textAlign: "center" }}>
@@ -681,24 +734,32 @@ export default function Game({ userId, userName }: Props) {
               </span>
             )}
 
-            <div className="card tight" style={{ marginTop: 8 }}>
-              <div className="card-title">👩‍🍳 SUA DUPLA</div>
-              {partnerFood ? (
-                <span className="badge dot" style={{ marginTop: 6 }}>✓ dupla finalizou</span>
-              ) : (
-                <>
-                  <div className="row gap8" style={{ marginBottom: 4 }}>
-                    <span className="typing"><span /><span /><span /></span>
-                    <span className="help">digitando…</span>
-                  </div>
-                  {partnerTyping && <div className="live-text caret">{partnerTyping}</div>}
-                </>
-              )}
-            </div>
+            {!isSolo && (
+              <div className="card tight" style={{ marginTop: 8 }}>
+                <div className="card-title">👩‍🍳 SUA DUPLA</div>
+                {partnerFood ? (
+                  <span className="badge dot" style={{ marginTop: 6 }}>✓ dupla finalizou</span>
+                ) : (
+                  <>
+                    <div className="row gap8" style={{ marginBottom: 4 }}>
+                      <span className="typing"><span /><span /><span /></span>
+                      <span className="help">digitando…</span>
+                    </div>
+                    {partnerTyping && <div className="live-text caret">{partnerTyping}</div>}
+                  </>
+                )}
+              </div>
+            )}
+            {isSolo && (
+              <div className="card tight" style={{ marginTop: 8, borderColor: "var(--yellow)" }}>
+                <div className="card-title" style={{ color: "var(--yellow)" }}>🧑‍🍳 MODO SOLO</div>
+                <p className="help">Escreva o prato e confirme — você cozinha sozinho!</p>
+              </div>
+            )}
 
             {(bothSubmitted || timeUp) && (
               <p className="tiny" style={{ color: "var(--yellow)", textAlign: "center" }}>
-                🎲 Sorteando qual prato vocês vão fazer…
+                {isSolo ? "✓ Prato confirmado! Partindo para cozinhar…" : "🎲 Sorteando qual prato vocês vão fazer…"}
               </p>
             )}
 
@@ -709,14 +770,16 @@ export default function Game({ userId, userName }: Props) {
             >
               CONFIRMAR PRATO ▸
             </button>
-            <p className="tiny" style={{ color: "var(--muted)", marginTop: "auto" }}>
-              O sistema vai sortear entre o seu prato e o da sua dupla.
-            </p>
+            {!isSolo && (
+              <p className="tiny" style={{ color: "var(--muted)", marginTop: "auto" }}>
+                O sistema vai sortear entre o seu prato e o da sua dupla.
+              </p>
+            )}
           </section>
         )}
 
-        {/* ── 5. PRATO SORTEADO (roleta cassino) ─────────────── */}
-        {scene === "pick" && chosenFood && pickPhase === "spin" && (
+        {/* ── 5. PRATO SORTEADO (roleta cassino) — só na dupla ── */}
+        {scene === "pick" && chosenFood && pickPhase === "spin" && !isSolo && (
           <section className="screen active center">
             <h2 className="neon-pink">🎰 SORTEANDO O PRATO</h2>
             <p className="help">A roleta decide qual dos dois pratos vocês vão fazer…</p>
@@ -726,10 +789,10 @@ export default function Game({ userId, userName }: Props) {
           </section>
         )}
 
-        {scene === "pick" && chosenFood && pickPhase === "reveal" && (
+        {scene === "pick" && chosenFood && (pickPhase === "reveal" || isSolo) && (
           <section className="screen active center">
-            <h2 className="neon-pink">🍴 PRATO SORTEADO</h2>
-            <p className="help">O sistema escolheu — mas a decisão final é de vocês.</p>
+            <h2 className="neon-pink">{isSolo ? "🍴 SEU PRATO" : "🍴 PRATO SORTEADO"}</h2>
+            <p className="help">{isSolo ? "Chegou a hora de cozinhar!" : "O sistema escolheu — mas a decisão final é de vocês."}</p>
 
             <div className="col gap20 mt8" style={{ width: "100%", maxWidth: 440 }}>
               <div className="dish win">
@@ -842,12 +905,14 @@ export default function Game({ userId, userName }: Props) {
           ] as const
         )
           .filter(({ always, stage }) => always || reached >= stage)
-          .map(({ id, emoji, label }) => (
+          .map(({ id, emoji, label, stage }) => {
+            const isActive = scene === id || (id === "lobby" && scene === "rooms");
+            // Etapa concluída = reached ultrapassou esse stage (só para etapas do jogo)
+            const isDone = stage > 0 && reached > stage;
+          return (
           <button
             key={id}
-            className={`nav-btn ${
-              scene === id || (id === "lobby" && scene === "rooms") ? "on" : ""
-            }`}
+            className={`nav-btn ${isActive ? "on" : ""}`}
             onClick={() => {
               if (id === "gallery") setManualScene("gallery");
               else if (id === "social") setManualScene("social");
@@ -855,10 +920,22 @@ export default function Game({ userId, userName }: Props) {
               else setManualScene(null);
             }}
           >
-            <span className="n">{emoji}</span>
+            <span className="n" style={{ position: "relative", display: "inline-block" }}>
+              {emoji}
+              {isDone && (
+                <span style={{
+                  position: "absolute", top: -4, right: -6,
+                  width: 12, height: 12, borderRadius: "50%",
+                  background: "var(--green)", fontSize: 8, lineHeight: "12px",
+                  textAlign: "center", color: "#0c2a1e", fontFamily: "var(--display)",
+                  boxShadow: "0 0 6px var(--green)",
+                }}>✓</span>
+              )}
+            </span>
             {label}
           </button>
-        ))}
+          );
+        })}
       </nav>
     </>
   );

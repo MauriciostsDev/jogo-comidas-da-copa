@@ -21,6 +21,7 @@ import {
 } from "@/app/actions";
 import { fireConfetti } from "@/lib/confetti";
 import { showToast } from "@/lib/toast";
+import Lightbox from "./Lightbox";
 
 type Props = { supabase: SupabaseClient; userId: string; userName: string };
 type SortMode = "hot" | "new" | "top";
@@ -398,6 +399,7 @@ function MyGCard({
   const [partnerId, setPartnerId] = useState(dish.partnerId ?? "");
   const [newFile, setNewFile] = useState<File | null>(null);
   const [newPreview, setNewPreview] = useState<string | null>(null);
+  const [lightbox, setLightbox] = useState(false);
   const [busy, setBusy] = useState(false);
   const [pubBusy, setPubBusy] = useState(false);
   const [showComments, setShowComments] = useState(false);
@@ -456,7 +458,10 @@ function MyGCard({
 
   return (
     <div className="gcard">
-      <div className="gphoto">
+      {lightbox && (
+        <Lightbox src={newPreview ?? dish.photo_url} alt={dish.dish} onClose={() => setLightbox(false)} />
+      )}
+      <div className="gphoto" onClick={() => setLightbox(true)} style={{ cursor: "zoom-in" }} title="Toque para expandir">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={newPreview ?? dish.photo_url} alt={dish.dish} loading="lazy" />
         <span className="flag">{dish.country_flag}</span>
@@ -646,6 +651,7 @@ function PostCard({
   const commentCount = dish.comments.length;
 
   const [showComments, setShowComments] = useState(false);
+  const [lightbox, setLightbox] = useState(false);
   const [presOpen, setPresOpen] = useState(false);
   const [presBusy, setPresBusy] = useState(false);
   const [likeBusy, setLikeBusy] = useState(false);
@@ -681,8 +687,11 @@ function PostCard({
         </div>
       </div>
 
+      {lightbox && (
+        <Lightbox src={dish.photo_url} alt={dish.dish} onClose={() => setLightbox(false)} />
+      )}
       {/* photo */}
-      <div className="post-photo">
+      <div className="post-photo" onClick={() => setLightbox(true)} style={{ cursor: "zoom-in" }} title="Toque para expandir">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={dish.photo_url} alt={dish.dish} loading="lazy" />
         <span className="pflag">{dish.country_flag}</span>

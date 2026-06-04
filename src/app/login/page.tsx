@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
-import { login, signup, forgotPassword, type AuthState } from "./actions";
+import { login, signup, type AuthState } from "./actions";
 import { TEAMS } from "@/lib/teams";
 
 const initial: AuthState = {};
@@ -22,19 +22,14 @@ const HOW_STEPS: { emoji: string; title: string; text: string }[] = [
 ];
 
 export default function LoginPage() {
-  const [mode, setMode] = useState<"login" | "signup" | "forgot">("login");
-  const action = mode === "login" ? login : mode === "signup" ? signup : forgotPassword;
+  const [mode, setMode] = useState<"login" | "signup">("login");
+  const action = mode === "login" ? login : signup;
   const [state, formAction, pending] = useActionState(action, initial);
   const [showPassword, setShowPassword] = useState(false);
 
   function switchMode(e: React.MouseEvent) {
     e.preventDefault();
     setMode((m) => (m === "login" ? "signup" : "login"));
-  }
-
-  function goForgot(e: React.MouseEvent) {
-    e.preventDefault();
-    setMode("forgot");
   }
 
   return (
@@ -81,14 +76,10 @@ export default function LoginPage() {
         {/* Card de auth */}
         <div className="card bolts accent" style={{ width: "100%", maxWidth: 420 }}>
           <div className="card-title">
-            {mode === "login" ? "INSERT COIN" : mode === "signup" ? "NEW PLAYER" : "RESET SENHA"}
+            {mode === "login" ? "INSERT COIN" : "NEW PLAYER"}
           </div>
           <p className="help" style={{ marginBottom: 14 }}>
-            {mode === "login"
-              ? "Faça login pra entrar na sala"
-              : mode === "signup"
-              ? "Crie seu jogador pra começar"
-              : "Digite seu email para receber o link de redefinição"}
+            {mode === "login" ? "Faça login pra entrar na sala" : "Crie seu jogador pra começar"}
           </p>
 
           <form action={formAction} className="col" style={{ textAlign: "left" }}>
@@ -118,8 +109,7 @@ export default function LoginPage() {
               />
             </div>
 
-            {mode !== "forgot" && (
-              <div className="field">
+            <div className="field">
                 <label className="label">SENHA</label>
                 <div style={{ position: "relative" }}>
                   <input
@@ -146,7 +136,6 @@ export default function LoginPage() {
                   </button>
                 </div>
               </div>
-            )}
 
             {state.error && (
               <p className="tiny" style={{ color: "var(--pink)", marginTop: 4 }}>
@@ -160,36 +149,15 @@ export default function LoginPage() {
             )}
 
             <button type="submit" disabled={pending} className="btn block lg mt8">
-              {pending
-                ? "AGUARDE…"
-                : mode === "login"
-                ? "ENTRAR ▸"
-                : mode === "signup"
-                ? "CRIAR CONTA ▸"
-                : "ENVIAR LINK ▸"}
+              {pending ? "AGUARDE…" : mode === "login" ? "ENTRAR ▸" : "CRIAR CONTA ▸"}
             </button>
           </form>
 
           <div className="divider mt20">OU</div>
-          {mode === "forgot" ? (
-            <a href="#" onClick={(e) => { e.preventDefault(); setMode("login"); }}
-              className="tiny" style={{ display: "block", textAlign: "center", color: "var(--accent-2)", marginTop: 12 }}>
-              Voltar para LOGIN
-            </a>
-          ) : (
-            <>
-              <a href="#" onClick={switchMode} className="tiny"
-                style={{ display: "block", textAlign: "center", color: "var(--accent-2)", marginTop: 12 }}>
-                {mode === "login" ? "Não tem conta? CADASTRE-SE" : "Já tem conta? ENTRAR"}
-              </a>
-              {mode === "login" && (
-                <a href="#" onClick={goForgot} className="tiny"
-                  style={{ display: "block", textAlign: "center", color: "var(--muted)", marginTop: 8 }}>
-                  Esqueci minha senha
-                </a>
-              )}
-            </>
-          )}
+          <a href="#" onClick={switchMode} className="tiny"
+            style={{ display: "block", textAlign: "center", color: "var(--accent-2)", marginTop: 12 }}>
+            {mode === "login" ? "Não tem conta? CADASTRE-SE" : "Já tem conta? ENTRAR"}
+          </a>
         </div>
 
         <p className="tiny" style={{ color: "var(--muted)", marginTop: 18 }}>
