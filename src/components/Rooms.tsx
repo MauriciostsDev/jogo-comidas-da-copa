@@ -14,11 +14,9 @@ type Props = {
 export default function Rooms({ onRoomReady, onSoloReady }: Props) {
   const [tab, setTab] = useState<"create" | "join">("create");
 
-  // criar
   const [room, setRoom] = useState<Room | null>(null);
   const [genBusy, setGenBusy] = useState(false);
 
-  // entrar
   const [code, setCode] = useState("");
   const [joinBusy, setJoinBusy] = useState(false);
 
@@ -26,10 +24,7 @@ export default function Rooms({ onRoomReady, onSoloReady }: Props) {
     setGenBusy(true);
     const r = await createRoom();
     setGenBusy(false);
-    if (!r.ok || !r.room) {
-      showToast(r.error ?? "Erro ao criar a sala.");
-      return;
-    }
+    if (!r.ok || !r.room) { showToast(r.error ?? "Erro ao criar a sala."); return; }
     setRoom(r.room);
     fireConfetti(16);
   }
@@ -46,133 +41,74 @@ export default function Rooms({ onRoomReady, onSoloReady }: Props) {
 
   async function handleShare() {
     if (!room) return;
-    const msg =
-      "Bora jogar Comidas da Copa! 🍴⚽ Entra na minha sala com o código " +
-      room.code;
+    const msg = "Bora jogar Comidas da Copa! 🍴⚽ Entra na minha sala com o código " + room.code;
     if (typeof navigator !== "undefined" && navigator.share) {
-      try {
-        await navigator.share({ title: "Comidas da Copa", text: msg });
-      } catch {
-        /* usuário cancelou */
-      }
+      try { await navigator.share({ title: "Comidas da Copa", text: msg }); } catch { /* cancelou */ }
     } else {
-      try {
-        await navigator.clipboard.writeText(msg);
-        showToast("📤 Convite copiado!");
-      } catch {
-        showToast(room.code);
-      }
+      try { await navigator.clipboard.writeText(msg); showToast("📤 Convite copiado!"); }
+      catch { showToast(room.code); }
     }
-  }
-
-  function handleOpen() {
-    if (!room) return;
-    onRoomReady(room);
   }
 
   async function handleJoin(e: React.FormEvent) {
     e.preventDefault();
-    if (!code.trim()) {
-      showToast("Digite o código da sala 😅");
-      return;
-    }
+    if (!code.trim()) { showToast("Digite o código da sala 😅"); return; }
     setJoinBusy(true);
     const r = await joinRoom(code);
     setJoinBusy(false);
-    if (!r.ok || !r.room) {
-      showToast(r.error ?? "Código inválido — ex: COPA-7X2K");
-      return;
-    }
+    if (!r.ok || !r.room) { showToast(r.error ?? "Código inválido — ex: COPA-7X2K"); return; }
     onRoomReady(r.room);
   }
 
   return (
     <section className="screen active center">
       <h2 className="neon">🎮 MODO DE JOGO</h2>
-      <p className="help">
-        Jogue em dupla com um amigo ou explore sozinho as culinárias do mundo.
-      </p>
+      <p className="help">Jogue em dupla ou explore sozinho as culinárias do mundo.</p>
 
-      {/* abas criar / entrar */}
-      <div className="chips" style={{ justifyContent: "center" }}>
-        <button
-          className={`chip ${tab === "create" ? "on" : ""}`}
-          onClick={() => setTab("create")}
-        >
-          ➕ CRIAR SALA
-        </button>
-        <button
-          className={`chip ${tab === "join" ? "on" : ""}`}
-          onClick={() => setTab("join")}
-        >
-          🔑 ENTRAR COM CÓDIGO
-        </button>
-      </div>
+      {/* ── MODO DUPLA ─────────────────────────────────────── */}
+      <div className="card bolts accent" style={{ width: "100%", maxWidth: 440, marginTop: 14, textAlign: "left" }}>
+        <div className="card-title">🤝 MODO DUPLA</div>
+        <p className="help" style={{ marginBottom: 12 }}>
+          Jogue com alguém — crie uma sala e mande o código, ou entre na sala de um amigo.
+        </p>
 
-      {/* CRIAR */}
-      {tab === "create" && (
-        <div
-          className="card bolts accent"
-          style={{ width: "100%", maxWidth: 440, marginTop: 14 }}
-        >
-          <div className="card-title">CÓDIGO DA SALA</div>
-          <div className="room-code">{room ? room.code : "————"}</div>
-          <p className="help">
-            {room
-              ? "Mande este código pra sua dupla 👇"
-              : "Gere um código único e compartilhe com sua dupla."}
-          </p>
-
-          <div
-            className="row gap8 mt8"
-            style={{ justifyContent: "center", flexWrap: "wrap" }}
-          >
-            <button
-              className="btn yellow sm"
-              onClick={handleGenerate}
-              disabled={genBusy}
-            >
-              {genBusy
-                ? "GERANDO…"
-                : room
-                  ? "GERAR OUTRO 🎲"
-                  : "GERAR CÓDIGO 🎲"}
-            </button>
-            {room && (
-              <>
-                <button className="btn ghost sm" onClick={handleCopy}>
-                  📋 COPIAR
-                </button>
-                <button className="btn ghost sm" onClick={handleShare}>
-                  📤 ENVIAR
-                </button>
-              </>
-            )}
-          </div>
-
-          {room && (
-            <button
-              className="btn block green lg mt20"
-              onClick={handleOpen}
-            >
-              ABRIR SALA ▸
-            </button>
-          )}
+        <div className="chips" style={{ justifyContent: "center", marginBottom: 14 }}>
+          <button className={`chip ${tab === "create" ? "on" : ""}`} onClick={() => setTab("create")}>
+            ➕ CRIAR SALA
+          </button>
+          <button className={`chip ${tab === "join" ? "on" : ""}`} onClick={() => setTab("join")}>
+            🔑 ENTRAR COM CÓDIGO
+          </button>
         </div>
-      )}
 
-      {/* ENTRAR */}
-      {tab === "join" && (
-        <div
-          className="card bolts"
-          style={{ width: "100%", maxWidth: 440, marginTop: 14 }}
-        >
-          <div className="card-title">CÓDIGO DO SEU AMIGO</div>
-          <form
-            onSubmit={handleJoin}
-            className="col"
-            style={{ gap: 12, marginTop: 6 }}
-          >
+        {tab === "create" && (
+          <>
+            <div className="label" style={{ marginBottom: 4 }}>CÓDIGO DA SALA</div>
+            <div className="room-code">{room ? room.code : "————"}</div>
+            <p className="help" style={{ marginTop: 8 }}>
+              {room ? "Mande este código pra sua dupla 👇" : "Gere um código único e compartilhe com sua dupla."}
+            </p>
+            <div className="row gap8 mt8" style={{ justifyContent: "center", flexWrap: "wrap" }}>
+              <button className="btn yellow sm" onClick={handleGenerate} disabled={genBusy}>
+                {genBusy ? "GERANDO…" : room ? "GERAR OUTRO 🎲" : "GERAR CÓDIGO 🎲"}
+              </button>
+              {room && (
+                <>
+                  <button className="btn ghost sm" onClick={handleCopy}>📋 COPIAR</button>
+                  <button className="btn ghost sm" onClick={handleShare}>📤 ENVIAR</button>
+                </>
+              )}
+            </div>
+            {room && (
+              <button className="btn block green lg mt20" onClick={() => onRoomReady(room)}>
+                ABRIR SALA ▸
+              </button>
+            )}
+          </>
+        )}
+
+        {tab === "join" && (
+          <form onSubmit={handleJoin} className="col" style={{ gap: 12 }}>
             <input
               className="input code-input"
               value={code}
@@ -183,23 +119,19 @@ export default function Rooms({ onRoomReady, onSoloReady }: Props) {
               autoCapitalize="characters"
               spellCheck={false}
             />
-            <button
-              className="btn block green lg"
-              type="submit"
-              disabled={joinBusy}
-            >
+            <button className="btn block green lg" type="submit" disabled={joinBusy}>
               {joinBusy ? "ENTRANDO…" : "ENTRAR NA SALA ▸"}
             </button>
+            <p className="tiny" style={{ color: "var(--muted)" }}>
+              Peça o código pra quem criou a sala.
+            </p>
           </form>
-          <p className="tiny" style={{ color: "var(--muted)", marginTop: 12 }}>
-            Peça o código pra quem criou a sala.
-          </p>
-        </div>
-      )}
+        )}
+      </div>
 
       <div className="divider" style={{ width: "100%", maxWidth: 440, margin: "18px 0" }}>OU</div>
 
-      {/* SOLO */}
+      {/* ── MODO SOLO ──────────────────────────────────────── */}
       <div className="card bolts" style={{ width: "100%", maxWidth: 440, textAlign: "left" }}>
         <div className="card-title" style={{ color: "var(--yellow)" }}>🧑‍🍳 MODO SOLO</div>
         <p className="help" style={{ marginBottom: 12 }}>
