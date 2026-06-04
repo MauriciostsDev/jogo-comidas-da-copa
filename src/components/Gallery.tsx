@@ -553,15 +553,9 @@ function PostCard({
         <button className="act cmt" onClick={() => setShowComments((v) => !v)}>
           <span className="ic">💬</span> <span>{dish.reviews.length}</span>
         </button>
-        {dish.mine ? (
-          <span className="act spacer" style={{ cursor: "default", color: "var(--accent)" }}>
-            <span className="ic">🍽️</span> SEU PRATO
-          </span>
-        ) : (
-          <button className="act spacer" onClick={() => setRateOpen((v) => !v)}>
-            <span className="ic">⭐</span> {myReview ? "EDITAR" : "AVALIAR"}
-          </button>
-        )}
+        <button className="act spacer" onClick={() => setRateOpen((v) => !v)}>
+          <span className="ic">⭐</span> {myReview ? "EDITAR" : "AVALIAR"}
+        </button>
       </div>
 
       {/* body */}
@@ -585,7 +579,7 @@ function PostCard({
           </div>
         )}
 
-        {!dish.mine && rateOpen && (
+        {rateOpen && (
           <div className="rate-box">
             <div className="rlabel">SUA NOTA</div>
             <div
