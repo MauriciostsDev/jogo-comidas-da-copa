@@ -182,6 +182,50 @@ export async function getMyRoom(): Promise<RoomResult> {
   return { ok: true, room: (data as Room) ?? undefined };
 }
 
+// Lista as duplas (amigos) do usuário logado.
+export async function getFriends(): Promise<{
+  ok: boolean;
+  friends?: Profile[];
+  error?: string;
+}> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("get_friends");
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, friends: (data ?? []) as Profile[] };
+}
+
+// Edita uma entrada da galeria: legenda, dupla marcada e (opcional) nova foto.
+export async function updateGalleryEntry(
+  matchId: string,
+  caption: string,
+  partnerId: string | null,
+  photoUrl: string | null,
+): Promise<ActionResult> {
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("update_gallery_entry", {
+    p_match_id: matchId,
+    p_caption: caption,
+    p_partner_id: partnerId,
+    p_photo_url: photoUrl,
+  });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+// Liga/desliga a foto no feed Social.
+export async function setPublished(
+  matchId: string,
+  published: boolean,
+): Promise<ActionResult> {
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("set_published", {
+    p_match_id: matchId,
+    p_published: published,
+  });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
 // Toggle de curtida em um prato do feed social.
 export async function toggleLike(
   matchId: string,

@@ -23,6 +23,7 @@ celulares e com **login por email e senha**.
    1. [`supabase/schema.sql`](supabase/schema.sql) — tabelas, funções, Realtime, bucket de fotos e as 48 seleções.
    2. [`supabase/schema_v2.sql`](supabase/schema_v2.sql) — perfis, sistema de amigos e curtidas do feed social.
    3. [`supabase/schema_v3_rooms.sql`](supabase/schema_v3_rooms.sql) — salas (criar/entrar com código `COPA-XXXX`).
+   4. [`supabase/schema_v4_gallery.sql`](supabase/schema_v4_gallery.sql) — edição da galeria (legenda, marcar a dupla, exportar pro feed). **Depende do v2.**
 3. Vá em **Project Settings → API** e copie:
    - **Project URL** → vira `NEXT_PUBLIC_SUPABASE_URL`
    - **anon public** key → vira `NEXT_PUBLIC_SUPABASE_ANON_KEY`
@@ -78,6 +79,7 @@ Pronto! 🎉
 | [`supabase/schema.sql`](supabase/schema.sql) | Banco, funções, Realtime, Storage e seed dos países |
 | [`supabase/schema_v2.sql`](supabase/schema_v2.sql) | Perfis, amigos e curtidas do feed social |
 | [`supabase/schema_v3_rooms.sql`](supabase/schema_v3_rooms.sql) | Salas: criar/entrar com código `COPA-XXXX` |
+| [`supabase/schema_v4_gallery.sql`](supabase/schema_v4_gallery.sql) | Galeria editável: legenda, marcar dupla, exportar pro feed |
 | [`src/lib/supabase/`](src/lib/supabase/) | Clientes Supabase (navegador, servidor, middleware) |
 | [`src/app/login/`](src/app/login/) | Tela e ações de login/cadastro |
 | [`src/app/actions.ts`](src/app/actions.ts) | Ações do jogo (sortear, prato, foto, salas) |

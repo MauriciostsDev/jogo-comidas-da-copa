@@ -15,6 +15,9 @@ export type Match = {
   writing_deadline: string;
   chosen_food_id: string | null;
   photo_url: string | null;
+  caption: string | null;
+  partner_id: string | null;
+  published: boolean;
   created_at: string;
 };
 
@@ -78,6 +81,10 @@ export type GalleryDish = {
   confederation: string;
   dish: string;
   cook: string;
+  caption: string | null;
+  partnerId: string | null;
+  partnerName: string | null;
+  published: boolean;
   reviews: Review[];
   likes: Like[];
   mine: boolean;

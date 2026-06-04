@@ -426,6 +426,13 @@ textarea.input { resize: none; line-height: 1.3; }
 .gbody { padding: 14px; display: flex; flex-direction: column; gap: 8px; }
 .gdish { font-family: var(--display); font-size: 12px; }
 .gby   { color: var(--muted); font-size: 17px; }
+.gcaption { font-size: 18px; line-height: 1.25; border-left: 3px solid var(--accent); padding-left: 10px; }
+.gphoto .pub-tag {
+  position: absolute; top: 8px; right: 8px;
+  font-family: var(--display); font-size: 8px; letter-spacing: .5px;
+  background: var(--pink); color: #fff; border: 2px solid var(--line); padding: 4px 6px;
+}
+select.input { cursor: pointer; appearance: none; -webkit-appearance: none; }
 
 /* stars */
 .stars { display: inline-flex; gap: 2px; font-size: 24px; line-height: 1; }

@@ -1,9 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { GalleryDish, Like, Review } from "@/lib/types";
-import { submitReview, toggleLike } from "@/app/actions";
+import type { GalleryDish, Like, Profile, Review } from "@/lib/types";
+import {
+  getFriends,
+  setPublished,
+  submitReview,
+  toggleLike,
+  updateGalleryEntry,
+} from "@/app/actions";
 import { fireConfetti } from "@/lib/confetti";
 import { showToast } from "@/lib/toast";
 
@@ -72,9 +78,10 @@ async function loadDishes(supabase: SupabaseClient, userId: string) {
   const { data } = await supabase
     .from("matches")
     .select(
-      `id, photo_url, created_at,
+      `id, photo_url, created_at, caption, published, partner_id,
        country:countries!matches_country_id_fkey ( name_pt, flag, confederation ),
        chosen:foods!matches_chosen_food_id_fkey ( text, author_name ),
+       partner:profiles!matches_partner_id_fkey ( user_id, display_name ),
        reviews ( id, match_id, user_id, author_name, rating, comment, created_at ),
        likes ( match_id, user_id, created_at )`,
     )
@@ -88,6 +95,7 @@ async function loadDishes(supabase: SupabaseClient, userId: string) {
   const mapped: GalleryDish[] = (data ?? []).map((m) => {
     const c = one(m.country) as { name_pt: string; flag: string; confederation: string } | null;
     const f = one(m.chosen) as { text: string; author_name: string } | null;
+    const p = one(m.partner) as { user_id: string; display_name: string } | null;
     return {
       match_id: m.id,
       photo_url: m.photo_url,
@@ -97,11 +105,15 @@ async function loadDishes(supabase: SupabaseClient, userId: string) {
       confederation: c?.confederation ?? "",
       dish: f?.text ?? "Prato surpresa",
       cook: f?.author_name ?? "Chef misterioso",
+      caption: m.caption ?? null,
+      partnerId: m.partner_id ?? null,
+      partnerName: p?.display_name ?? null,
+      published: !!m.published,
       reviews: ((m.reviews as Review[]) ?? []).sort(
         (a, b) => +new Date(b.created_at) - +new Date(a.created_at),
       ),
       likes: ((m.likes as Like[]) ?? []),
-      mine: myMatchIds.has(m.id),
+      mine: myMatchIds.has(m.id) || m.partner_id === userId,
     };
   });
 
@@ -129,10 +141,17 @@ function useDishes(supabase: SupabaseClient, userId: string) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-//  🏆 MINHA GALERIA — vitrine só da dupla (read-only)
+//  🏆 MINHA GALERIA — vitrine da dupla (editável: foto, dupla, legenda, feed)
 // ═══════════════════════════════════════════════════════════════════════════
-export function MyGallery({ supabase, userId, userName }: Props) {
-  const { dishes } = useDishes(supabase, userId);
+export function MyGallery({ supabase, userId }: Props) {
+  const { dishes, load } = useDishes(supabase, userId);
+  const [friends, setFriends] = useState<Profile[]>([]);
+
+  useEffect(() => {
+    getFriends().then((r) => {
+      if (r.ok && r.friends) setFriends(r.friends);
+    });
+  }, []);
 
   if (dishes === null) {
     return (
@@ -179,36 +198,187 @@ export function MyGallery({ supabase, userId, userName }: Props) {
       </div>
 
       <div className="grid">
-        {mine.map((dish) => {
-          const a = avg(dish.reviews);
-          return (
-            <div key={dish.match_id} className="gcard">
-              <div className="gphoto">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={dish.photo_url} alt={dish.dish} loading="lazy" />
-                <span className="flag">{dish.country_flag}</span>
-                <span className="score">★ {a ? a.toFixed(1) : "—"}</span>
-              </div>
-              <div className="gbody">
-                <div className="gdish">{dish.dish}</div>
-                <div className="gby">
-                  por <span className="neon">VOCÊS</span> · ❤️ {dish.likes.length}
-                </div>
-                <div className="reviews">
-                  {dish.reviews.length ? (
-                    <ReviewsList reviews={dish.reviews} userId={userId} />
-                  ) : (
-                    <div className="help" style={{ fontSize: 15 }}>
-                      Ainda sem avaliações — divulguem no Social 😉
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          );
-        })}
+        {mine.map((dish) => (
+          <MyGCard
+            key={dish.match_id}
+            dish={dish}
+            supabase={supabase}
+            userId={userId}
+            friends={friends}
+            onChange={load}
+          />
+        ))}
       </div>
     </>
+  );
+}
+
+// Card editável da Minha Galeria
+function MyGCard({
+  dish, supabase, userId, friends, onChange,
+}: {
+  dish: GalleryDish;
+  supabase: SupabaseClient;
+  userId: string;
+  friends: Profile[];
+  onChange: () => void;
+}) {
+  const a = avg(dish.reviews);
+  const [editing, setEditing] = useState(false);
+  const [caption, setCaption] = useState(dish.caption ?? "");
+  const [partnerId, setPartnerId] = useState(dish.partnerId ?? "");
+  const [newFile, setNewFile] = useState<File | null>(null);
+  const [newPreview, setNewPreview] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [pubBusy, setPubBusy] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  function pickFile(f: File) {
+    setNewFile(f);
+    const r = new FileReader();
+    r.onload = () => setNewPreview(r.result as string);
+    r.readAsDataURL(f);
+  }
+
+  async function uploadPhoto(file: File): Promise<string | null> {
+    const ext = file.name.split(".").pop() ?? "jpg";
+    const path = `${dish.match_id}/${Date.now()}.${ext}`;
+    const up = await supabase.storage.from("fotos").upload(path, file);
+    if (up.error) { showToast("Erro ao enviar foto: " + up.error.message); return null; }
+    return supabase.storage.from("fotos").getPublicUrl(path).data.publicUrl;
+  }
+
+  function cancel() {
+    setEditing(false);
+    setNewFile(null);
+    setNewPreview(null);
+    setCaption(dish.caption ?? "");
+    setPartnerId(dish.partnerId ?? "");
+  }
+
+  async function save() {
+    setBusy(true);
+    let photoUrl: string | null = null;
+    if (newFile) {
+      photoUrl = await uploadPhoto(newFile);
+      if (!photoUrl) { setBusy(false); return; }
+    }
+    const r = await updateGalleryEntry(dish.match_id, caption, partnerId || null, photoUrl);
+    setBusy(false);
+    if (!r.ok) { showToast(r.error ?? "Erro ao salvar."); return; }
+    fireConfetti(18);
+    showToast("Galeria atualizada! ✨");
+    setEditing(false);
+    setNewFile(null);
+    setNewPreview(null);
+    onChange();
+  }
+
+  async function togglePublish() {
+    setPubBusy(true);
+    const r = await setPublished(dish.match_id, !dish.published);
+    setPubBusy(false);
+    if (!r.ok) { showToast(r.error ?? "Não rolou."); return; }
+    if (!dish.published) { fireConfetti(24); showToast("📤 Publicado no feed!"); }
+    else showToast("Removido do feed.");
+    onChange();
+  }
+
+  return (
+    <div className="gcard">
+      <div className="gphoto">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={newPreview ?? dish.photo_url} alt={dish.dish} loading="lazy" />
+        <span className="flag">{dish.country_flag}</span>
+        <span className="score">★ {a ? a.toFixed(1) : "—"}</span>
+        {dish.published && <span className="pub-tag">📤 NO FEED</span>}
+      </div>
+      <div className="gbody">
+        <div className="gdish">{dish.dish}</div>
+        <div className="gby">
+          por <span className="neon">VOCÊS</span>
+          {dish.partnerName && <> · 🤝 {dish.partnerName}</>} · ❤️ {dish.likes.length}
+        </div>
+
+        {!editing && dish.caption && <p className="gcaption">{dish.caption}</p>}
+
+        {!editing ? (
+          <>
+            <div className="reviews">
+              {dish.reviews.length ? (
+                <ReviewsList reviews={dish.reviews} userId={userId} />
+              ) : (
+                <div className="help" style={{ fontSize: 15 }}>
+                  Ainda sem avaliações — exporte pro feed pra galera avaliar 😉
+                </div>
+              )}
+            </div>
+            <div className="row gap8" style={{ flexWrap: "wrap" }}>
+              <button className="btn ghost sm" onClick={() => setEditing(true)}>✏️ EDITAR</button>
+              <button
+                className={`btn sm ${dish.published ? "ghost" : "pink"}`}
+                onClick={togglePublish}
+                disabled={pubBusy}
+              >
+                {dish.published ? "✓ NO FEED — REMOVER" : "📤 EXPORTAR AO FEED"}
+              </button>
+            </div>
+          </>
+        ) : (
+          <div className="col gap8">
+            <button className="btn ghost sm" onClick={() => fileRef.current?.click()}>
+              📷 {newFile ? "FOTO TROCADA ✓" : "TROCAR FOTO"}
+            </button>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) pickFile(f); }}
+            />
+
+            <div className="field">
+              <label className="label">QUEM COZINHOU COM VOCÊ</label>
+              {friends.length ? (
+                <select
+                  className="input"
+                  value={partnerId}
+                  onChange={(e) => setPartnerId(e.target.value)}
+                >
+                  <option value="">— ninguém marcado —</option>
+                  {friends.map((f) => (
+                    <option key={f.user_id} value={f.user_id}>{f.display_name}</option>
+                  ))}
+                </select>
+              ) : (
+                <p className="help" style={{ fontSize: 15 }}>
+                  Adicione sua dupla pelo código (no lobby 🤝) pra poder marcar aqui.
+                </p>
+              )}
+            </div>
+
+            <div className="field">
+              <label className="label">LEGENDA / COMENTÁRIO</label>
+              <textarea
+                className="input"
+                rows={2}
+                maxLength={280}
+                value={caption}
+                onChange={(e) => setCaption(e.target.value)}
+                placeholder="Conta como foi cozinhar esse prato…"
+              />
+            </div>
+
+            <div className="row gap8">
+              <button className="btn green sm" onClick={save} disabled={busy}>
+                {busy ? "SALVANDO…" : "SALVAR ✓"}
+              </button>
+              <button className="btn ghost sm" onClick={cancel} disabled={busy}>CANCELAR</button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -229,7 +399,7 @@ export function Social({ supabase, userId, userName }: Props) {
     );
   }
 
-  const social = dishes.filter((d) => !d.mine);
+  const social = dishes.filter((d) => !d.mine && d.published);
 
   // Pódio: top 3 por média (desempate por curtidas)
   const topSorted = [...social].sort(
@@ -343,7 +513,7 @@ function PostCard({
       <div className="post-head">
         <div className="avatar">{avFor(dish.cook)}</div>
         <div className="meta">
-          <div className="pduo">{dish.cook}</div>
+          <div className="pduo">{dish.cook}{dish.partnerName ? ` & ${dish.partnerName}` : ""}</div>
           <div className="psub">{dish.country_flag} {dish.country_name} · {timeAgo(dish.created_at)}</div>
         </div>
       </div>
@@ -373,6 +543,7 @@ function PostCard({
       <div className="post-body">
         <div className="post-caption">
           <span className="pdish">{dish.dish}</span>
+          {dish.caption && <span>{dish.caption}</span>}
         </div>
 
         {dish.reviews.length > 0 && (
