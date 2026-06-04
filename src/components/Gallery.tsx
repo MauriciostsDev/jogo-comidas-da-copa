@@ -198,14 +198,21 @@ function CommentBox({
 }
 
 // ─── Data loader (compartilhado) ─────────────────────────────────────────────
-async function loadDishes(supabase: SupabaseClient, userId: string) {
-  const { data: myFoods } = await supabase
+// Retorna null em caso de ERRO (pra um reload que falhou — comum em conexão de
+// celular instável — NÃO sobrescrever a lista com vazio e remontar os cards,
+// o que fazia a avaliação em edição "voltar" pro valor salvo).
+async function loadDishes(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<GalleryDish[] | null> {
+  const { data: myFoods, error: foodsErr } = await supabase
     .from("foods")
     .select("match_id")
     .eq("user_id", userId);
+  if (foodsErr) return null;
   const myMatchIds = new Set((myFoods ?? []).map((f: { match_id: string }) => f.match_id));
 
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("matches")
     .select(
       `id, photo_url, created_at, caption, published, partner_id,
@@ -220,6 +227,7 @@ async function loadDishes(supabase: SupabaseClient, userId: string) {
     .eq("status", "done")
     .not("photo_url", "is", null)
     .order("created_at", { ascending: false });
+  if (error) return null;
 
   const one = <T,>(v: T | T[] | null): T | null =>
     Array.isArray(v) ? (v[0] ?? null) : (v ?? null);
@@ -259,7 +267,10 @@ async function loadDishes(supabase: SupabaseClient, userId: string) {
 function useDishes(supabase: SupabaseClient, userId: string) {
   const [dishes, setDishes] = useState<GalleryDish[] | null>(null);
   const load = useCallback(async () => {
-    setDishes(await loadDishes(supabase, userId));
+    const result = await loadDishes(supabase, userId);
+    // sucesso: usa o resultado. erro: mantém a lista atual (não remonta os
+    // cards); só cai pra vazio se ainda não tinha carregado nada.
+    setDishes((prev) => result ?? prev ?? []);
   }, [supabase, userId]);
 
   useEffect(() => {
