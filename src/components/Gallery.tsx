@@ -595,7 +595,6 @@ export function Social({ supabase, userId, userName }: Props) {
       <div className="chips">
         <button className={`chip ${sort === "hot" ? "on" : ""}`} onClick={() => setSort("hot")}>🔥 EM ALTA</button>
         <button className={`chip ${sort === "new" ? "on" : ""}`} onClick={() => setSort("new")}>🆕 RECENTES</button>
-        <button className={`chip ${sort === "top" ? "on" : ""}`} onClick={() => setSort("top")}>🏅 + VOTADOS</button>
       </div>
 
       {/* Feed */}

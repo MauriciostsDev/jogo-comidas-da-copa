@@ -700,7 +700,6 @@ export default function Game({ userId, userName }: Props) {
           <section className="screen active">
             <div className="row between wrap">
               <h2 className="neon-green">🏆 MINHA GALERIA</h2>
-              <span className="badge dot">SUA DUPLA</span>
             </div>
             <p className="help">A vitrine de vocês dois. Os pratos que cozinharam e as notas que receberam.</p>
             <MyGallery supabase={supabase} userId={userId} userName={userName} />
@@ -712,7 +711,6 @@ export default function Game({ userId, userName }: Props) {
           <section className="screen active">
             <div className="row between wrap">
               <h2 className="neon-pink">🌐 SOCIAL</h2>
-              <span className="badge dot">SALA #2026 · AO VIVO</span>
             </div>
             <p className="help">O feed da galera. Curta, avalie e comente os pratos das outras duplas.</p>
             <Social supabase={supabase} userId={userId} userName={userName} />
