@@ -15,7 +15,6 @@ import {
 import { MyGallery, Social } from "./Gallery";
 import Lobby from "./Lobby";
 import Rooms from "./Rooms";
-import FriendInvite from "./FriendInvite";
 import { buildReelSeq, rndTeam, type Team } from "@/lib/teams";
 import { fireConfetti } from "@/lib/confetti";
 import { showToast } from "@/lib/toast";
@@ -782,6 +781,7 @@ export default function Game({ userId, userName }: Props) {
             country={country}
             chosenFood={chosenFood}
             otherFood={otherFood}
+            partnerName={partnerFood?.author_name ?? null}
             busy={busy}
             swapConfirm={swapConfirm}
             onOpenSwap={() => setSwapConfirm(true)}
@@ -851,12 +851,13 @@ export default function Game({ userId, userName }: Props) {
 
 // ─── Cook Screen ─────────────────────────────────────────────────────────────
 function CookScreen({
-  country, chosenFood, otherFood, busy,
+  country, chosenFood, otherFood, partnerName, busy,
   swapConfirm, onOpenSwap, onCloseSwap, onSwap, onUpload,
 }: {
   country: Country;
   chosenFood: Food;
   otherFood: Food | null;
+  partnerName: string | null;
   busy: boolean;
   swapConfirm: boolean;
   onOpenSwap: () => void;
@@ -867,7 +868,6 @@ function CookScreen({
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
-  const [showFriendInvite, setShowFriendInvite] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   function readFile(file: File) {
@@ -901,22 +901,22 @@ function CookScreen({
         estiver pronto, mande a foto.
       </p>
 
-      {/* Add friend banner */}
-      <div
-        className="card tight"
-        style={{ borderColor: "var(--accent)", cursor: "pointer" }}
-        onClick={() => setShowFriendInvite(true)}
-      >
-        <div className="row between">
-          <div>
-            <div className="card-title">🤝 ADICIONAR DUPLA</div>
-            <div className="help">Conecte com seu parceiro de cozinha</div>
+      {/* Dupla presente na sala */}
+      {partnerName && (
+        <div className="card tight" style={{ borderColor: "var(--green)" }}>
+          <div className="row between">
+            <div>
+              <div className="card-title" style={{ color: "var(--green)" }}>🤝 SUA DUPLA NA SALA</div>
+              <div className="help">
+                <strong style={{ color: "var(--ink)" }}>{partnerName}</strong> está cozinhando com você 🔥
+              </div>
+            </div>
+            <span className="badge dot" style={{ borderColor: "var(--green)", color: "var(--green)" }}>
+              ONLINE
+            </span>
           </div>
-          <span className="badge" style={{ borderColor: "var(--accent)", color: "var(--accent)" }}>
-            + AMIGO
-          </span>
         </div>
-      </div>
+      )}
 
       {/* Swap option */}
       {otherFood && !swapConfirm && (
@@ -984,13 +984,6 @@ function CookScreen({
       >
         {busy ? "ENVIANDO…" : "ENVIAR PRA GALERIA ▸"}
       </button>
-
-      {showFriendInvite && (
-        <FriendInvite
-          onClose={() => setShowFriendInvite(false)}
-          onFriendAdded={() => showToast("Dupla adicionada! 🎉")}
-        />
-      )}
     </section>
   );
 }
