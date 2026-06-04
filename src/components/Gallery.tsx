@@ -691,6 +691,28 @@ function PostCard({
 
       {/* body */}
       <div className="post-body">
+        {/* Inputs interativos aparecem LOGO ABAIXO DA FOTO (perto das ações),
+            pra não ficarem lá embaixo depois de uma lista grande de comentários */}
+        {presOpen && (
+          <div className="rate-box">
+            <div className="rlabel">DÊ A NOTA DA APRESENTAÇÃO (0–10)</div>
+            <div className="pres-pick">
+              {Array.from({ length: 11 }, (_, n) => (
+                <button
+                  key={n}
+                  className={`pres-btn ${myPres?.score === n ? "on" : ""}`}
+                  onClick={() => ratePres(n)}
+                  disabled={presBusy}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {showComments && <CommentBox matchId={dish.match_id} onChange={onChange} />}
+
         <div className="post-caption">
           <span className="pdish">{dish.dish}</span>
           {dish.caption && <span>{dish.caption}</span>}
@@ -714,24 +736,6 @@ function PostCard({
           </span>
         </div>
 
-        {presOpen && (
-          <div className="rate-box">
-            <div className="rlabel">DÊ A NOTA DA APRESENTAÇÃO (0–10)</div>
-            <div className="pres-pick">
-              {Array.from({ length: 11 }, (_, n) => (
-                <button
-                  key={n}
-                  className={`pres-btn ${myPres?.score === n ? "on" : ""}`}
-                  onClick={() => ratePres(n)}
-                  disabled={presBusy}
-                >
-                  {n}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
         {commentCount > 0 && (
           <button className="toggle-cmt" onClick={() => setShowComments((v) => !v)}>
             {showComments
@@ -740,15 +744,10 @@ function PostCard({
           </button>
         )}
 
-        {showComments && (
-          <>
-            {commentCount > 0 && (
-              <div className="post-reviews">
-                <CommentsList comments={dish.comments} userId={userId} />
-              </div>
-            )}
-            <CommentBox matchId={dish.match_id} onChange={onChange} />
-          </>
+        {showComments && commentCount > 0 && (
+          <div className="post-reviews">
+            <CommentsList comments={dish.comments} userId={userId} />
+          </div>
         )}
       </div>
     </article>
