@@ -346,6 +346,26 @@ textarea.input { resize: none; line-height: 1.3; }
 }
 .result-flag { font-size: 84px; line-height: 1; filter: drop-shadow(4px 4px 0 var(--shadow)); }
 
+/* slot machine do sorteio do prato (cassino) */
+.pick-slot {
+  width: 100%; max-width: 440px; margin-top: 12px;
+  min-height: 110px; display: grid; place-items: center; padding: 18px; overflow: hidden;
+  border: var(--pix) solid var(--accent-2); background: var(--surface-2);
+  box-shadow: inset 0 0 24px rgba(0,0,0,.4), 5px 5px 0 var(--shadow);
+}
+.pick-slot-name {
+  font-family: var(--display); font-size: clamp(14px, 4.6vw, 22px);
+  color: var(--accent-2); text-shadow: var(--glow) var(--accent-2);
+  text-align: center; line-height: 1.4;
+  animation: slot-roll .11s ease;
+}
+@keyframes slot-roll { from { transform: translateY(-14px); opacity: .3; } to { transform: translateY(0); opacity: 1; } }
+.pick-count {
+  font-family: var(--display); font-size: clamp(44px, 13vw, 80px);
+  color: var(--yellow); text-shadow: var(--glow) var(--yellow);
+  margin-top: 14px; animation: pop .35s ease;
+}
+
 /* timer */
 .timer {
   font-family: var(--display);

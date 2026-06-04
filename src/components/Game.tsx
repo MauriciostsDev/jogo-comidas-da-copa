@@ -81,6 +81,12 @@ export default function Game({ userId, userName }: Props) {
   const [swapConfirm, setSwapConfirm] = useState(false);
   const lastMatchId = useRef<string | null>(null);
 
+  // Sorteio do prato — animação cassino + contagem 3·2·1
+  const [pickPhase, setPickPhase] = useState<"spin" | "reveal">("reveal");
+  const [pickReel, setPickReel] = useState("");
+  const [pickCount, setPickCount] = useState(3);
+  const pickAnimatedFor = useRef<string | null>(null);
+
   // Aba manual (galeria/social) — null = segue o fluxo do jogo
   const [manualScene, setManualScene] = useState<"gallery" | "social" | null>(null);
 
@@ -350,6 +356,35 @@ export default function Game({ userId, userName }: Props) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drawPhase, country?.id]);
 
+  // ── Sorteio do prato: roleta cassino entre os dois pratos + 3·2·1 ──
+  useEffect(() => {
+    const inPick = match?.status === "cooking" && !pickConfirmed && !!chosenFood;
+    if (!inPick) return;
+    if (pickAnimatedFor.current === match!.id) return;
+
+    // Sem a outra opção ainda (foods carregando) ou só há 1 prato → revela
+    // direto, sem marcar como animado (re-tenta a roleta quando a outra chegar).
+    if (!otherFood) { setPickPhase("reveal"); return; }
+
+    pickAnimatedFor.current = match!.id;
+    const names = [chosenFood!.text, otherFood.text];
+    setPickPhase("spin");
+    setPickCount(3);
+    setPickReel(names[0]);
+    let i = 0;
+    const flip = setInterval(() => { i += 1; setPickReel(names[i % 2]); }, 110);
+    const t2 = setTimeout(() => setPickCount(2), 1000);
+    const t1 = setTimeout(() => setPickCount(1), 2000);
+    const done = setTimeout(() => {
+      clearInterval(flip);
+      setPickReel(chosenFood!.text);
+      setPickPhase("reveal");
+      fireConfetti(60);
+    }, 3000);
+    return () => { clearInterval(flip); clearTimeout(t2); clearTimeout(t1); clearTimeout(done); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [match?.id, match?.status, pickConfirmed, chosenFood?.id, otherFood?.id]);
+
   // ── Actions ───────────────────────────────────────────────────
   async function handleDraw() {
     setError("");
@@ -424,6 +459,11 @@ export default function Game({ userId, userName }: Props) {
   // O stepper só avança conforme o fluxo do jogo (entrar/criar sala → lobby →
   // sorteio → prato → cozinhar), nunca ao espiar Galeria/Social.
   const stepIdx = STEP_OF[flowScene] ?? 0;
+
+  // Até onde o jogo chegou — revela os ícones da nav progressivamente.
+  const STAGE_OF: Record<string, number> = { rooms: 0, lobby: 0, draw: 1, write: 2, pick: 3, cook: 4 };
+  let reached = STAGE_OF[flowScene] ?? 0;
+  if (status === "done") reached = 4; // rodada concluída: tudo liberado
 
   return (
     <>
@@ -626,8 +666,19 @@ export default function Game({ userId, userName }: Props) {
           </section>
         )}
 
-        {/* ── 5. PRATO SORTEADO ──────────────────────────────── */}
-        {scene === "pick" && chosenFood && (
+        {/* ── 5. PRATO SORTEADO (roleta cassino) ─────────────── */}
+        {scene === "pick" && chosenFood && pickPhase === "spin" && (
+          <section className="screen active center">
+            <h2 className="neon-pink">🎰 SORTEANDO O PRATO</h2>
+            <p className="help">A roleta decide qual dos dois pratos vocês vão fazer…</p>
+            <div className="pick-slot">
+              <div className="pick-slot-name" key={pickReel}>{pickReel || "…"}</div>
+            </div>
+            <div className="pick-count" key={pickCount}>{pickCount}</div>
+          </section>
+        )}
+
+        {scene === "pick" && chosenFood && pickPhase === "reveal" && (
           <section className="screen active center">
             <h2 className="neon-pink">🍴 PRATO SORTEADO</h2>
             <p className="help">O sistema escolheu — mas a decisão final é de vocês.</p>
@@ -722,15 +773,17 @@ export default function Game({ userId, userName }: Props) {
       <nav className="nav">
         {(
           [
-            { id: "lobby",   emoji: "🚪", label: "SALA"     },
-            { id: "draw",    emoji: "🎲", label: "SORTEIO"  },
-            { id: "write",   emoji: "✍️",  label: "PRATO"    },
-            { id: "pick",    emoji: "🍴", label: "ESCOLHA"  },
-            { id: "cook",    emoji: "📸", label: "COZINHAR" },
-            { id: "gallery", emoji: "🏆", label: "GALERIA"  },
-            { id: "social",  emoji: "🌐", label: "SOCIAL"   },
+            { id: "lobby",   emoji: "🚪", label: "SALA",     stage: 0, always: true },
+            { id: "draw",    emoji: "🎲", label: "SORTEIO",  stage: 1, always: false },
+            { id: "write",   emoji: "✍️",  label: "PRATO",    stage: 2, always: false },
+            { id: "pick",    emoji: "🍴", label: "ESCOLHA",  stage: 3, always: false },
+            { id: "cook",    emoji: "📸", label: "COZINHAR", stage: 4, always: false },
+            { id: "gallery", emoji: "🏆", label: "GALERIA",  stage: 0, always: true },
+            { id: "social",  emoji: "🌐", label: "SOCIAL",   stage: 0, always: true },
           ] as const
-        ).map(({ id, emoji, label }) => (
+        )
+          .filter(({ always, stage }) => always || reached >= stage)
+          .map(({ id, emoji, label }) => (
           <button
             key={id}
             className={`nav-btn ${
