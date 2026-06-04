@@ -57,7 +57,9 @@
 
 /* ---------- Reset ---------- */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html { -webkit-text-size-adjust: 100%; }
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+/* Prevent double-tap zoom on interactive elements */
+button, a, [role="button"] { touch-action: manipulation; }
 
 body {
   font-family: var(--body);
@@ -114,7 +116,9 @@ h3 { font-size: clamp(11px, 2.4vw, 14px); }
 /* ---------- Layout ---------- */
 .stage {
   max-width: 760px; margin: 0 auto;
-  padding: 90px 18px 120px;
+  padding: 90px 16px 130px;
+  padding-left: max(16px, env(safe-area-inset-left));
+  padding-right: max(16px, env(safe-area-inset-right));
   min-height: 100dvh;
   display: flex; flex-direction: column;
 }
@@ -236,6 +240,9 @@ textarea.input { resize: none; line-height: 1.3; }
   position: fixed; top: 0; left: 0; right: 0; z-index: 50;
   display: flex; align-items: center; justify-content: space-between;
   padding: 12px 16px;
+  padding-top: max(12px, env(safe-area-inset-top));
+  padding-left: max(16px, env(safe-area-inset-left));
+  padding-right: max(16px, env(safe-area-inset-right));
   background: color-mix(in srgb, var(--bg) 86%, transparent);
   border-bottom: var(--pix) solid var(--line);
   backdrop-filter: blur(4px);
@@ -260,21 +267,27 @@ textarea.input { resize: none; line-height: 1.3; }
 /* ---------- Bottom nav ---------- */
 .nav {
   position: fixed; bottom: 0; left: 0; right: 0; z-index: 50;
-  display: flex; gap: 6px; overflow-x: auto;
-  padding: 10px 12px;
-  background: color-mix(in srgb, var(--bg) 90%, transparent);
+  display: flex; gap: 2px; overflow-x: auto;
+  padding: 8px 6px;
+  padding-bottom: max(8px, env(safe-area-inset-bottom));
+  padding-left: max(6px, env(safe-area-inset-left));
+  padding-right: max(6px, env(safe-area-inset-right));
+  background: color-mix(in srgb, var(--bg) 95%, transparent);
   border-top: var(--pix) solid var(--line);
   backdrop-filter: blur(4px);
   scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
 }
 .nav::-webkit-scrollbar { display: none; }
 .nav-btn {
-  flex: 0 0 auto; font-family: var(--display); font-size: 9px; letter-spacing: .3px;
+  flex: 1 1 0; min-width: 46px; max-width: 80px;
+  font-family: var(--display); font-size: 8px; letter-spacing: .2px;
   color: var(--muted); background: transparent; border: 2px solid transparent;
-  padding: 8px 10px; cursor: pointer; white-space: nowrap;
-  display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 54px;
+  padding: 7px 4px; cursor: pointer; white-space: nowrap;
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  min-height: var(--tap);
 }
-.nav-btn .n { font-size: 14px; }
+.nav-btn .n { font-size: 18px; line-height: 1; }
 .nav-btn:hover { color: var(--ink); }
 .nav-btn.on {
   color: var(--accent); border-color: var(--line);
@@ -511,12 +524,20 @@ select.input { cursor: pointer; appearance: none; -webkit-appearance: none; }
 /* modal */
 .modal-overlay {
   position: fixed; inset: 0; z-index: 9000;
-  display: grid; place-items: center; padding: 20px;
+  display: grid; place-items: center;
+  padding: 16px;
+  padding-top: max(16px, env(safe-area-inset-top));
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
+  padding-left: max(16px, env(safe-area-inset-left));
+  padding-right: max(16px, env(safe-area-inset-right));
   background: color-mix(in srgb, var(--shadow) 70%, transparent);
   backdrop-filter: blur(2px);
   animation: screen-in .2s ease both;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  align-items: flex-start;
 }
-.modal-box { width: 100%; max-width: 380px; text-align: center; }
+.modal-box { width: 100%; max-width: 420px; text-align: center; margin: auto; }
 .modal-box p { font-size: 21px; }
 
 /* toast */
@@ -689,10 +710,27 @@ select.input { cursor: pointer; appearance: none; -webkit-appearance: none; }
 
 @media (max-width: 560px) {
   body { font-size: 20px; }
-  .stage { padding: 80px 14px 110px; }
-  .card { padding: 16px; box-shadow: 6px 6px 0 var(--shadow); }
+  .stage { padding: 76px 12px 120px; }
+  .card { padding: 14px; box-shadow: 5px 5px 0 var(--shadow); }
+  .card.tight { padding: 12px; }
   .reel-flag { font-size: 48px; }
-  .reel-name { font-size: 14px; }
+  .reel-name { font-size: 13px; }
   .step .bar { width: 8px; }
-  .step .dot { width: 22px; height: 22px; }
+  .step .dot { width: 22px; height: 22px; font-size: 8px; }
+  .result-flag { font-size: 64px; }
+  .btn.lg { font-size: 13px; padding: 16px 18px; }
+  h2 { font-size: clamp(12px, 3.5vw, 18px); }
+  .grid { grid-template-columns: 1fr; }
+  .stats-row .stat { min-width: 80px; }
+  .podium { grid-template-columns: 1fr 1.1fr 1fr; gap: 6px; }
+  .pod { padding: 10px 6px 12px; }
+}
+
+@media (max-width: 390px) {
+  body { font-size: 18px; }
+  .nav-btn { font-size: 7px; min-width: 40px; }
+  .nav-btn .n { font-size: 16px; }
+  .btn { font-size: 11px; padding: 14px 16px; }
+  .btn.lg { font-size: 12px; }
+  .card-title { font-size: 10px; }
 }
