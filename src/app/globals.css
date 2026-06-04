@@ -478,6 +478,14 @@ select.input { cursor: pointer; appearance: none; -webkit-appearance: none; }
 }
 .flags-marquee div { display: flex; gap: 18px; animation: marquee 22s linear infinite; flex: 0 0 auto; }
 .help { color: var(--muted); font-size: 17px; }
+
+/* dashboard "como funciona" — número do passo */
+.howto-num {
+  flex: 0 0 28px; width: 28px; height: 28px; display: grid; place-items: center;
+  font-family: var(--display); font-size: 11px;
+  border: 2px solid var(--accent); color: var(--accent);
+  background: var(--surface-2); box-shadow: var(--glow) var(--accent);
+}
 .kbd  { font-family: var(--display); font-size: 9px; border: 2px solid var(--line); padding: 3px 6px; background: var(--surface-2); }
 .hidden { display: none !important; }
 

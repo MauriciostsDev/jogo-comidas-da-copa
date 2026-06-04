@@ -10,6 +10,17 @@ const initial: AuthState = {};
 const FLAGS = TEAMS.map((t) => t.f).join(" ");
 const MARQUEE_ROW = FLAGS + " " + FLAGS;
 
+// Passo a passo do jogo (dashboard da tela inicial)
+const HOW_STEPS: { emoji: string; title: string; text: string }[] = [
+  { emoji: "🚪", title: "SALA", text: "Crie uma sala (código COPA-XXXX) ou entre na sala da sua dupla." },
+  { emoji: "🎲", title: "SORTEIO", text: "Sorteie uma das 48 seleções da Copa 2026 na roleta." },
+  { emoji: "✍️", title: "PRATO", text: "Cada um escreve um prato típico do país — 7 minutos no relógio." },
+  { emoji: "🎰", title: "ESCOLHA", text: "A roleta sorteia um dos dois pratos. Dá pra trocar pela outra opção." },
+  { emoji: "📸", title: "COZINHAR", text: "Cozinhem de verdade e mandem a foto do prato pronto." },
+  { emoji: "🏆", title: "GALERIA", text: "A foto entra na galeria de vocês; avaliem com estrelas + comentário." },
+  { emoji: "🌐", title: "SOCIAL", text: "A galera curte, comenta e dá nota de apresentação (0–10)." },
+];
+
 export default function LoginPage() {
   const [mode, setMode] = useState<"login" | "signup">("login");
   const action = mode === "login" ? login : signup;
@@ -159,6 +170,45 @@ export default function LoginPage() {
         <p className="tiny" style={{ color: "var(--muted)", marginTop: 18 }}>
           🔒 Autenticação segura
         </p>
+
+        {/* Dashboard: como funciona o jogo */}
+        <div
+          className="card bolts"
+          style={{ width: "100%", maxWidth: 520, marginTop: 24, textAlign: "left" }}
+        >
+          <div className="card-title">🎮 COMO FUNCIONA</div>
+          <p className="help" style={{ marginBottom: 12 }}>
+            Um joguinho em dupla: sorteia, cozinha de verdade e a galera avalia. 🏆
+          </p>
+
+          <div className="col" style={{ gap: 0 }}>
+            {HOW_STEPS.map((s, i) => (
+              <div
+                key={s.title}
+                className="row gap8"
+                style={{
+                  alignItems: "flex-start",
+                  padding: "10px 0",
+                  borderTop: i ? "2px solid var(--line)" : "none",
+                }}
+              >
+                <span className="howto-num">{i + 1}</span>
+                <div>
+                  <div style={{ fontFamily: "var(--display)", fontSize: 11, color: "var(--accent)" }}>
+                    {s.emoji} {s.title}
+                  </div>
+                  <div className="help" style={{ fontSize: 16, marginTop: 4 }}>
+                    {s.text}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <p className="tiny" style={{ color: "var(--muted)", marginTop: 12 }}>
+            ⚽ Entre pra começar — sua dupla entra com o código da sala.
+          </p>
+        </div>
       </main>
     </>
   );
