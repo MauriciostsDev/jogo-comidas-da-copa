@@ -2,16 +2,19 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import type { Country, Food, Match } from "@/lib/types";
+import type { Country, Food, Match, Room } from "@/lib/types";
 import {
   attachPhoto,
   chooseFood,
   drawCountry,
+  getMyRoom,
+  leaveRoom,
   submitFood,
   swapFood,
 } from "@/app/actions";
 import { MyGallery, Social } from "./Gallery";
 import Lobby from "./Lobby";
+import Rooms from "./Rooms";
 import FriendInvite from "./FriendInvite";
 import { buildReelSeq, rndTeam, type Team } from "@/lib/teams";
 import { fireConfetti } from "@/lib/confetti";
@@ -25,6 +28,7 @@ const ITEM_H = 120;
 const REEL_LEN = 26;
 
 const STEP_OF: Record<string, number> = {
+  rooms: 0,
   lobby: 0,
   draw: 1,
   write: 2,
@@ -33,7 +37,15 @@ const STEP_OF: Record<string, number> = {
   gallery: 4,
   social: 4,
 };
-type Scene = "lobby" | "draw" | "write" | "pick" | "cook" | "gallery" | "social";
+type Scene =
+  | "rooms"
+  | "lobby"
+  | "draw"
+  | "write"
+  | "pick"
+  | "cook"
+  | "gallery"
+  | "social";
 
 // Countries one partner cooked but the other hasn't (for exclusion toggle in lobby)
 type ExcludableCountry = {
@@ -71,6 +83,10 @@ export default function Game({ userId, userName }: Props) {
 
   // Aba manual (galeria/social) — null = segue o fluxo do jogo
   const [manualScene, setManualScene] = useState<"gallery" | "social" | null>(null);
+
+  // Sala atual (criar/entrar com código). null = ainda na tela de salas.
+  const [room, setRoom] = useState<Room | null>(null);
+  const [roomLoaded, setRoomLoaded] = useState(false);
 
   // Country exclusion (lobby feature)
   const [countriesToExclude, setCountriesToExclude] = useState<ExcludableCountry[]>([]);
@@ -235,6 +251,20 @@ export default function Game({ userId, userName }: Props) {
     return () => clearInterval(t);
   }, []);
 
+  // ── Retoma a sala ativa (host/guest) após reload ─────────────
+  useEffect(() => {
+    getMyRoom().then((r) => {
+      if (r.ok && r.room) setRoom(r.room);
+      setRoomLoaded(true);
+    });
+  }, []);
+
+  async function handleLeaveRoom() {
+    const current = room;
+    setRoom(null);
+    if (current) await leaveRoom(current.id);
+  }
+
   // ── Reset pick / swap when match changes ─────────────────────
   useEffect(() => {
     if (match?.id && match.id !== lastMatchId.current) {
@@ -386,6 +416,7 @@ export default function Game({ userId, userName }: Props) {
   else if (status === "writing") { scene = "write"; }
   else if (status === "cooking" && !pickConfirmed) { scene = "pick"; }
   else if (status === "cooking" && pickConfirmed) { scene = "cook"; }
+  else if (!room) { scene = "rooms"; }
   else { scene = "lobby"; }
 
   const stepIdx = STEP_OF[scene] ?? 0;
@@ -410,6 +441,11 @@ export default function Game({ userId, userName }: Props) {
 
         {error && (
           <p className="tiny" style={{ color: "var(--pink)" }}>⚠ {error}</p>
+        )}
+
+        {/* ── 1b. SALA DE JOGO (criar / entrar com código) ───── */}
+        {scene === "rooms" && roomLoaded && (
+          <Rooms onRoomReady={(r) => setRoom(r)} />
         )}
 
         {/* ── 1&2. LOBBY ─────────────────────────────────────── */}
@@ -442,10 +478,12 @@ export default function Game({ userId, userName }: Props) {
                 supabase={supabase}
                 userId={userId}
                 userName={userName}
+                room={room}
                 isNextRound={status === "done"}
                 canDrawMore={drawnCount < TOTAL_PAISES}
                 busy={busy}
                 onDraw={handleDraw}
+                onLeaveRoom={handleLeaveRoom}
                 countriesToExclude={countriesToExclude}
                 onToggleExclusion={handleToggleExclusion}
                 exclusions={exclusions}
@@ -693,7 +731,9 @@ export default function Game({ userId, userName }: Props) {
         ).map(({ id, emoji, label }) => (
           <button
             key={id}
-            className={`nav-btn ${scene === id ? "on" : ""}`}
+            className={`nav-btn ${
+              scene === id || (id === "lobby" && scene === "rooms") ? "on" : ""
+            }`}
             onClick={() => {
               if (id === "gallery") setManualScene("gallery");
               else if (id === "social") setManualScene("social");

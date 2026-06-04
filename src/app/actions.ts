@@ -1,7 +1,9 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import type { Profile } from "@/lib/types";
+import type { Profile, Room } from "@/lib/types";
+
+export type RoomResult = { ok: boolean; room?: Room; error?: string };
 
 export type ActionResult = { ok: boolean; error?: string };
 export type ProfileResult = { ok: boolean; profile?: Profile; error?: string };
@@ -129,6 +131,55 @@ export async function addFriendByCode(
   });
   if (error) return { ok: false, error: error.message };
   return { ok: true, friend: data as Profile };
+}
+
+// Cria uma sala nova com código COPA-XXXX e retorna a sala (host).
+export async function createRoom(): Promise<RoomResult> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("create_room");
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, room: data as Room };
+}
+
+// Entra numa sala pelo código (guest). Valida e registra no banco.
+export async function joinRoom(code: string): Promise<RoomResult> {
+  const clean = code.trim();
+  if (!clean) return { ok: false, error: "Digite o código da sala." };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("join_room_by_code", {
+    p_code: clean,
+  });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, room: data as Room };
+}
+
+// Sai (ou fecha) a sala atual.
+export async function leaveRoom(roomId: string): Promise<ActionResult> {
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("leave_room", { p_room_id: roomId });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+// Busca a sala ativa do usuário (host ou guest) pra retomar após reload.
+export async function getMyRoom(): Promise<RoomResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Você precisa estar logado." };
+
+  const { data, error } = await supabase
+    .from("rooms")
+    .select("*")
+    .or(`host_id.eq.${user.id},guest_id.eq.${user.id}`)
+    .neq("status", "closed")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, room: (data as Room) ?? undefined };
 }
 
 // Toggle de curtida em um prato do feed social.

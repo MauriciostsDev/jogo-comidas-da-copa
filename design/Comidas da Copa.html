@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Comidas da Copa 2026</title>
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="favicon-16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="favicon-180.png">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -57,18 +60,52 @@
     <p class="tiny" style="color:var(--muted);margin-top:18px">🔒 Autenticação segura</p>
   </section>
 
+  <!-- ============ 1b. SALAS (criar / entrar) ============ -->
+  <section id="sc-rooms" class="screen center">
+    <h2 class="neon">🎮 SALA DE JOGO</h2>
+    <p class="help">Crie uma sala e mande o código pra sua dupla — ou entre na sala dela.</p>
+
+    <div class="chips" id="roomTabs" style="margin-top:8px;justify-content:center">
+      <button class="chip on" data-rtab="create">➕ CRIAR SALA</button>
+      <button class="chip" data-rtab="join">🔑 ENTRAR COM CÓDIGO</button>
+    </div>
+
+    <!-- CRIAR -->
+    <div class="card bolts accent" id="roomCreate" style="width:100%;max-width:440px;margin-top:14px">
+      <div class="card-title">CÓDIGO DA SALA</div>
+      <div class="room-code" id="roomCode">————</div>
+      <p class="help" id="roomCodeHint">Gere um código único e compartilhe com sua dupla.</p>
+      <div class="row gap8 mt8" style="justify-content:center;flex-wrap:wrap">
+        <button class="btn yellow sm" id="genRoom">GERAR CÓDIGO 🎲</button>
+        <button class="btn ghost sm hidden" id="copyRoom">📋 COPIAR</button>
+        <button class="btn ghost sm hidden" id="shareRoom">📤 ENVIAR</button>
+      </div>
+      <button class="btn block green lg mt20 hidden" id="openRoom">ABRIR SALA ▸</button>
+    </div>
+
+    <!-- ENTRAR -->
+    <div class="card bolts hidden" id="roomJoin" style="width:100%;max-width:440px;margin-top:14px">
+      <div class="card-title">CÓDIGO DO SEU AMIGO</div>
+      <form id="joinForm" class="col" style="gap:12px;margin-top:6px">
+        <input class="input code-input" id="joinCode" placeholder="COPA-7X2K" maxlength="9" autocomplete="off" autocapitalize="characters" spellcheck="false">
+        <button class="btn block green lg" type="submit">ENTRAR NA SALA ▸</button>
+      </form>
+      <p class="tiny" style="color:var(--muted);margin-top:12px">Peça o código pra quem criou a sala.</p>
+    </div>
+  </section>
+
   <!-- ============ 2. SALA DE ESPERA ============ -->
   <section id="sc-lobby" class="screen">
     <div class="row between wrap">
       <h2 class="neon-pink">🚪 SALA DE ESPERA</h2>
-      <span class="badge dot">SALA #2026</span>
+      <span class="badge dot" id="lobbyRoom">SALA #2026</span>
     </div>
     <p class="help" id="lobbyHint">Esperando sua dupla entrar…</p>
 
     <div class="col gap20 mt8">
       <div class="player me">
         <div class="avatar">🧑‍🍳</div>
-        <div><div class="pname" id="meName">VOCÊ</div><div class="pmeta">jogador 1 · host</div></div>
+        <div><div class="pname" id="meName">VOCÊ</div><div class="pmeta" id="meRole">jogador 1 · host</div></div>
         <span class="ready-tag no" id="meReadyTag">AGUARDANDO</span>
       </div>
       <div class="player" id="mateSlot"></div>

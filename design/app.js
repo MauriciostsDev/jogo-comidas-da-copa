@@ -7,13 +7,14 @@
   const $$ = (s,r=document)=>[...r.querySelectorAll(s)];
   const rnd = a => a[Math.floor(Math.random()*a.length)];
 
-  const SCREENS = ["login","lobby","draw","write","pick","cook","gallery","social"];
-  const STEP_OF = {login:0,lobby:0,draw:1,write:2,pick:2,cook:3,gallery:4,social:4};
+  const SCREENS = ["login","rooms","lobby","draw","write","pick","cook","gallery","social"];
+  const STEP_OF = {login:0,rooms:0,lobby:0,draw:1,write:2,pick:2,cook:3,gallery:4,social:4};
 
   const state = {
     me:{name:"VOCÊ",emoji:"🧑‍🍳",ready:false},
     mate:{name:"PARCEIRO",emoji:"👩‍🍳",ready:false,joined:false},
-    team:null, myDish:"", mateDish:"", chosen:null, photo:null
+    team:null, myDish:"", mateDish:"", chosen:null, photo:null,
+    room:{code:"", isHost:true}
   };
 
   /* ---------- Theme ---------- */
@@ -63,6 +64,60 @@
     const nm = $("#nameInput").value.trim();
     if(nm) state.me.name = nm.toUpperCase().slice(0,14);
     $("#meName").textContent = state.me.name;
+    go("rooms");
+  });
+
+  /* ---------- 1b. SALAS (criar / entrar com código) ---------- */
+  const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // sem 0/O/1/I
+  function genCode(){
+    let s=""; for(let i=0;i<4;i++) s+=CODE_CHARS[Math.floor(Math.random()*CODE_CHARS.length)];
+    return "COPA-"+s;
+  }
+  // alternar abas criar/entrar
+  $$("#roomTabs .chip").forEach(c=>c.addEventListener("click",()=>{
+    $$("#roomTabs .chip").forEach(x=>x.classList.toggle("on",x===c));
+    const create = c.dataset.rtab==="create";
+    $("#roomCreate").classList.toggle("hidden",!create);
+    $("#roomJoin").classList.toggle("hidden",create);
+  }));
+  // gerar código
+  $("#genRoom").addEventListener("click",()=>{
+    const code = genCode();
+    state.room.code = code; state.room.isHost = true;
+    $("#roomCode").textContent = code;
+    $("#roomCodeHint").textContent = "Mande este código pra sua dupla 👇";
+    $("#copyRoom").classList.remove("hidden");
+    $("#shareRoom").classList.remove("hidden");
+    $("#openRoom").classList.remove("hidden");
+    $("#genRoom").textContent = "GERAR OUTRO 🎲";
+    confetti(16);
+  });
+  // copiar código
+  $("#copyRoom").addEventListener("click",async()=>{
+    try{ await navigator.clipboard.writeText(state.room.code); toast("📋 Código copiado!"); }
+    catch(_){ toast("Copie manualmente: "+state.room.code); }
+  });
+  // enviar (share nativo) com fallback
+  $("#shareRoom").addEventListener("click",async()=>{
+    const msg = "Bora jogar Comidas da Copa! 🍴⚽ Entra na minha sala com o código "+state.room.code;
+    if(navigator.share){ try{ await navigator.share({title:"Comidas da Copa",text:msg}); }catch(_){} }
+    else{ try{ await navigator.clipboard.writeText(msg); toast("📤 Convite copiado!"); }catch(_){ toast(state.room.code); } }
+  });
+  // abrir sala (host)
+  $("#openRoom").addEventListener("click",()=>{
+    if(!state.room.code) return;
+    state.room.isHost = true;
+    go("lobby");
+  });
+  // entrar com código (convidado)
+  $("#joinForm").addEventListener("submit",e=>{
+    e.preventDefault();
+    let v = $("#joinCode").value.trim().toUpperCase().replace(/\s/g,"");
+    if(!v){ toast("Digite o código da sala 😅"); return; }
+    if(!v.startsWith("COPA-")) v = "COPA-"+v.replace(/^COPA-?/,"");
+    if(!/^COPA-[A-Z0-9]{4}$/.test(v)){ toast("Código inválido — ex: COPA-7X2K"); return; }
+    state.room.code = v; state.room.isHost = false;
+    state.mate.joined = false; // o host vai "aparecer" como jogador 1
     go("lobby");
   });
 
@@ -71,16 +126,20 @@
   const onEnter = {};
   onEnter.lobby = ()=>{
     $("#meName").textContent = state.me.name;
+    $("#lobbyRoom").textContent = state.room.code ? "SALA "+state.room.code : "SALA #2026";
+    $("#meRole").textContent = state.room.isHost ? "jogador 1 · host" : "jogador 2";
     renderLobby();
     // simulate partner joining live
     if(!state.mate.joined){
       clearTimeout(mateTimer);
       $("#mateSlot").classList.add("searching");
+      // se você ENTROU numa sala, o host já está lá (entra mais rápido)
+      const wait = state.room.isHost ? 2600 : 1100;
       mateTimer = setTimeout(()=>{
         state.mate.joined = true;
         renderLobby();
-        toast("👋 "+state.mate.name+" entrou na sala!");
-      },2600);
+        toast("👋 "+state.mate.name+(state.room.isHost?" entrou na sala!":" (host) está na sala!"));
+      },wait);
     }
   };
   function renderLobby(){
@@ -91,10 +150,11 @@
     $("#meReadyBtn").classList.toggle("green",!state.me.ready);
     $("#meReadyBtn").classList.toggle("ghost",state.me.ready);
     // mate
+    const mateRole = state.room.isHost ? "jogador 2" : "jogador 1 · host";
     if(state.mate.joined){
       $("#mateSlot").innerHTML =
         `<div class="avatar">${state.mate.emoji}</div>
-         <div><div class="pname">${state.mate.name}</div><div class="pmeta">jogador 2</div></div>
+         <div><div class="pname">${state.mate.name}</div><div class="pmeta">${mateRole}</div></div>
          <span class="ready-tag ${state.mate.ready?'yes':'no'}">${state.mate.ready?'✓ PRONTO':'AGUARDANDO'}</span>`;
     }else{
       $("#mateSlot").innerHTML =

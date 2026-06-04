@@ -17,9 +17,12 @@ celulares e com **login por email e senha**.
 ### 1) Criar o projeto no Supabase
 
 1. Acesse <https://supabase.com> e crie um projeto (free). Anote a senha do banco.
-2. Quando o projeto subir, vá em **SQL Editor → New query**, abra o arquivo
-   [`supabase/schema.sql`](supabase/schema.sql) deste repositório, **cole tudo e clique em Run**.
-   Isso cria as tabelas, as funções, o Realtime, o bucket de fotos e já cadastra as 48 seleções.
+2. Quando o projeto subir, vá em **SQL Editor → New query** e rode, **nesta ordem**,
+   colando cada arquivo inteiro e clicando em **Run** (todos são idempotentes/additive —
+   pode rodar de novo sem medo):
+   1. [`supabase/schema.sql`](supabase/schema.sql) — tabelas, funções, Realtime, bucket de fotos e as 48 seleções.
+   2. [`supabase/schema_v2.sql`](supabase/schema_v2.sql) — perfis, sistema de amigos e curtidas do feed social.
+   3. [`supabase/schema_v3_rooms.sql`](supabase/schema_v3_rooms.sql) — salas (criar/entrar com código `COPA-XXXX`).
 3. Vá em **Project Settings → API** e copie:
    - **Project URL** → vira `NEXT_PUBLIC_SUPABASE_URL`
    - **anon public** key → vira `NEXT_PUBLIC_SUPABASE_ANON_KEY`
@@ -73,7 +76,10 @@ Pronto! 🎉
 | Arquivo | O quê |
 |---|---|
 | [`supabase/schema.sql`](supabase/schema.sql) | Banco, funções, Realtime, Storage e seed dos países |
+| [`supabase/schema_v2.sql`](supabase/schema_v2.sql) | Perfis, amigos e curtidas do feed social |
+| [`supabase/schema_v3_rooms.sql`](supabase/schema_v3_rooms.sql) | Salas: criar/entrar com código `COPA-XXXX` |
 | [`src/lib/supabase/`](src/lib/supabase/) | Clientes Supabase (navegador, servidor, middleware) |
 | [`src/app/login/`](src/app/login/) | Tela e ações de login/cadastro |
-| [`src/app/actions.ts`](src/app/actions.ts) | Ações do jogo (sortear, enviar prato, sortear prato, foto) |
+| [`src/app/actions.ts`](src/app/actions.ts) | Ações do jogo (sortear, prato, foto, salas) |
+| [`src/components/Rooms.tsx`](src/components/Rooms.tsx) | Tela "Sala de Jogo" (criar/entrar com código) |
 | [`src/components/Game.tsx`](src/components/Game.tsx) | Tela do jogo com sincronização ao vivo |

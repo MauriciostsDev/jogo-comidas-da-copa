@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { RealtimeChannel, SupabaseClient } from "@supabase/supabase-js";
-import type { Profile } from "@/lib/types";
+import type { Profile, Room } from "@/lib/types";
 import { fireConfetti } from "@/lib/confetti";
 import { showToast } from "@/lib/toast";
 import { getOrCreateProfile } from "@/app/actions";
@@ -14,10 +14,12 @@ type Props = {
   supabase: SupabaseClient;
   userId: string;
   userName: string;
+  room: Room | null;
   isNextRound: boolean;
   canDrawMore: boolean;
   busy: boolean;
   onDraw: () => void;
+  onLeaveRoom: () => void;
   // Countries that one side cooked but the other hasn't — offer exclusion toggle
   countriesToExclude: { id: number; name: string; flag: string; cookedByMe: boolean }[];
   onToggleExclusion: (countryId: number, exclude: boolean) => void;
@@ -33,14 +35,18 @@ export default function Lobby({
   supabase,
   userId,
   userName,
+  room,
   isNextRound,
   canDrawMore,
   busy,
   onDraw,
+  onLeaveRoom,
   countriesToExclude,
   onToggleExclusion,
   exclusions,
 }: Props) {
+  const roomCode = room?.code ?? null;
+  const isHost = room ? room.host_id === userId : true;
   const channelRef = useRef<RealtimeChannel | null>(null);
   const [players, setPlayers] = useState<Player[]>([]);
   const [joined, setJoined] = useState(false);
@@ -58,7 +64,7 @@ export default function Lobby({
   }, []);
 
   useEffect(() => {
-    const channel = supabase.channel("sala-comidas", {
+    const channel = supabase.channel(`sala-${roomCode ?? "2026"}`, {
       config: { presence: { key: userId } },
     });
     channelRef.current = channel;
@@ -96,22 +102,23 @@ export default function Lobby({
       setPlayers(list);
     });
 
-    channel.subscribe();
+    channel.subscribe((status) => {
+      if (status === "SUBSCRIBED") {
+        channel.track({ userId, userName, ready: false });
+        setJoined(true);
+      }
+    });
     return () => {
       supabase.removeChannel(channel);
       channelRef.current = null;
+      setJoined(false);
+      setReady(false);
     };
-  }, [supabase, userId]);
+  }, [supabase, userId, roomCode, userName]);
 
-  async function joinRoom() {
-    await channelRef.current?.track({ userId, userName, ready: false });
-    setJoined(true);
-  }
-
-  async function leaveRoom() {
+  async function handleLeave() {
     await channelRef.current?.untrack();
-    setJoined(false);
-    setReady(false);
+    onLeaveRoom();
   }
 
   async function toggleReady() {
@@ -124,37 +131,9 @@ export default function Lobby({
   const everyoneReady = players.length >= 2 && players.every((p) => p.ready);
   const matePlayer = others[0] ?? null;
 
-  // -------- Ainda não entrei --------
-  if (!joined) {
-    return (
-      <section className="screen active center">
-        <h2 className="neon-pink">🚪 SALA DE ESPERA</h2>
-        <p className="lead">
-          {others.length
-            ? `${others.map((p) => p.userName).join(", ")} está na sala!`
-            : "Entre e aguarde sua dupla aparecer ao vivo."}
-        </p>
-        <button className="btn lg green mt20" onClick={joinRoom}>
-          ENTRAR NA SALA 🚪
-        </button>
+  void joined;
 
-        {/* Invite code chip */}
-        {myProfile && (
-          <div className="invite-chip" onClick={() => setShowInvite(true)}>
-            <span className="tiny" style={{ color: "var(--muted)" }}>SEU CÓDIGO:</span>
-            <span className="invite-code">{myProfile.invite_code}</span>
-            <span className="tiny" style={{ color: "var(--accent)" }}>CONVIDAR DUPLA 🤝</span>
-          </div>
-        )}
-
-        {showInvite && (
-          <FriendInvite onClose={() => setShowInvite(false)} />
-        )}
-      </section>
-    );
-  }
-
-  // -------- Já entrei: ready-check --------
+  // -------- Ready-check (já entrou na sala automaticamente) --------
   const hint = everyoneReady
     ? "Tudo pronto! Bora sortear ⚽"
     : !matePlayer
@@ -165,7 +144,7 @@ export default function Lobby({
     <section className="screen active">
       <div className="row between wrap">
         <h2 className="neon-pink">🚪 SALA DE ESPERA</h2>
-        <span className="badge dot">SALA #2026</span>
+        <span className="badge dot">SALA {roomCode ?? "#2026"}</span>
       </div>
       <p className="help">{hint}</p>
 
@@ -176,7 +155,7 @@ export default function Lobby({
           <div style={{ flex: 1 }}>
             <div className="pname">{userName.toUpperCase().slice(0, 14)}</div>
             <div className="pmeta">
-              jogador 1 · você
+              {isHost ? "jogador 1 · host" : "jogador 2"}
               {myProfile && (
                 <span
                   className="invite-inline"
@@ -199,7 +178,7 @@ export default function Lobby({
             <div className="avatar">{playerEmoji(matePlayer.userName)}</div>
             <div>
               <div className="pname">{matePlayer.userName.toUpperCase().slice(0, 14)}</div>
-              <div className="pmeta">jogador 2</div>
+              <div className="pmeta">{isHost ? "jogador 2" : "jogador 1 · host"}</div>
             </div>
             <span className={`ready-tag ${matePlayer.ready ? "yes" : "no"}`}>
               {matePlayer.ready ? "✓ PRONTO" : "AGUARDANDO"}
@@ -279,7 +258,7 @@ export default function Lobby({
       </button>
 
       <button
-        onClick={leaveRoom}
+        onClick={handleLeave}
         className="tiny mt8"
         style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", alignSelf: "center" }}
       >
