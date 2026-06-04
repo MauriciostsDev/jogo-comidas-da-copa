@@ -57,6 +57,17 @@ export type Friendship = {
   created_at: string;
 };
 
+export type RoomStatus = "waiting" | "active" | "closed";
+
+export type Room = {
+  id: string;
+  code: string;
+  host_id: string;
+  guest_id: string | null;
+  status: RoomStatus;
+  created_at: string;
+};
+
 // Um prato concluído com tudo que a galeria precisa exibir.
 export type GalleryDish = {
   match_id: string;
