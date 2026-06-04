@@ -282,6 +282,52 @@ export async function ratePresentation(
   return { ok: true };
 }
 
+// Busca países sorteados e pratos publicados de um amigo.
+export async function getFriendData(friendId: string): Promise<{
+  ok: boolean;
+  countries?: Array<{ id: number; name_pt: string; flag: string; confederation: string; status: string }>;
+  dishes?: Array<{ match_id: string; photo_url: string | null; dish: string; country_name: string; country_flag: string; caption: string | null }>;
+  error?: string;
+}> {
+  const supabase = await createClient();
+
+  const { data: foods, error: fErr } = await supabase
+    .from("foods")
+    .select("match_id")
+    .eq("user_id", friendId);
+  if (fErr) return { ok: false, error: fErr.message };
+
+  const matchIds = (foods ?? []).map((f: { match_id: string }) => f.match_id);
+  if (!matchIds.length) return { ok: true, countries: [], dishes: [] };
+
+  const { data: matches, error: mErr } = await supabase
+    .from("matches")
+    .select(`id, photo_url, status, caption, published,
+      country:countries!matches_country_id_fkey (id, name_pt, flag, confederation),
+      chosen:foods!matches_chosen_food_id_fkey (text, author_name)`)
+    .in("id", matchIds)
+    .order("created_at", { ascending: false });
+  if (mErr) return { ok: false, error: mErr.message };
+
+  const one = <T,>(v: T | T[] | null): T | null =>
+    Array.isArray(v) ? (v[0] ?? null) : (v ?? null);
+
+  const countries = (matches ?? []).map((m) => {
+    const c = one(m.country) as { id: number; name_pt: string; flag: string; confederation: string } | null;
+    return { id: c?.id ?? 0, name_pt: c?.name_pt ?? "—", flag: c?.flag ?? "🏳️", confederation: c?.confederation ?? "", status: m.status };
+  });
+
+  const dishes = (matches ?? [])
+    .filter((m) => m.published && m.photo_url)
+    .map((m) => {
+      const c = one(m.country) as { name_pt: string; flag: string } | null;
+      const f = one(m.chosen) as { text: string } | null;
+      return { match_id: m.id, photo_url: m.photo_url as string, dish: f?.text ?? "Prato surpresa", country_name: c?.name_pt ?? "—", country_flag: c?.flag ?? "🏳️", caption: m.caption ?? null };
+    });
+
+  return { ok: true, countries, dishes };
+}
+
 // Toggle de curtida em um prato do feed social.
 export async function toggleLike(
   matchId: string,

@@ -15,6 +15,7 @@ import {
 import { MyGallery, Social } from "./Gallery";
 import Lobby from "./Lobby";
 import Rooms from "./Rooms";
+import Friends from "./Friends";
 import { buildReelSeq, rndTeam, type Team } from "@/lib/teams";
 import { fireConfetti } from "@/lib/confetti";
 import { showToast } from "@/lib/toast";
@@ -44,7 +45,8 @@ type Scene =
   | "pick"
   | "cook"
   | "gallery"
-  | "social";
+  | "social"
+  | "friends";
 
 // Marca uma animação como "já vista" (por rodada), pra não repetir ao recarregar.
 function alreadyShown(key: string): boolean {
@@ -98,8 +100,8 @@ export default function Game({ userId, userName }: Props) {
   const [writeCount, setWriteCount] = useState(3);
   const writeIntroFor = useRef<string | null>(null);
 
-  // Aba manual (galeria/social) — null = segue o fluxo do jogo
-  const [manualScene, setManualScene] = useState<"gallery" | "social" | null>(null);
+  // Aba manual (galeria/social/friends) — null = segue o fluxo do jogo
+  const [manualScene, setManualScene] = useState<"gallery" | "social" | "friends" | null>(null);
 
   // Sala atual (criar/entrar com código). null = ainda na tela de salas.
   const [room, setRoom] = useState<Room | null>(null);
@@ -818,6 +820,11 @@ export default function Game({ userId, userName }: Props) {
             <Social supabase={supabase} userId={userId} userName={userName} />
           </section>
         )}
+
+        {/* ── 9. AMIGOS ───────────────────────────────────────── */}
+        {scene === "friends" && (
+          <Friends supabase={supabase} userId={userId} userName={userName} />
+        )}
       </main>
 
       {/* ── Bottom nav ────────────────────────────────────────── */}
@@ -831,6 +838,7 @@ export default function Game({ userId, userName }: Props) {
             { id: "cook",    emoji: "📸", label: "COZINHAR", stage: 4, always: false },
             { id: "gallery", emoji: "🏆", label: "GALERIA",  stage: 0, always: true },
             { id: "social",  emoji: "🌐", label: "SOCIAL",   stage: 0, always: true },
+            { id: "friends", emoji: "🤝", label: "AMIGOS",   stage: 0, always: true },
           ] as const
         )
           .filter(({ always, stage }) => always || reached >= stage)
@@ -843,6 +851,7 @@ export default function Game({ userId, userName }: Props) {
             onClick={() => {
               if (id === "gallery") setManualScene("gallery");
               else if (id === "social") setManualScene("social");
+              else if (id === "friends") setManualScene("friends");
               else setManualScene(null);
             }}
           >
