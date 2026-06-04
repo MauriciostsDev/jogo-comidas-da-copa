@@ -400,6 +400,7 @@ function MyGCard({
   const [newPreview, setNewPreview] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [pubBusy, setPubBusy] = useState(false);
+  const [showComments, setShowComments] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   function pickFile(f: File) {
@@ -487,8 +488,20 @@ function MyGCard({
 
             {dish.reviews.length > 0 || dish.comments.length > 0 ? (
               <div className="reviews">
+                {/* avaliações com estrelas (principais) — sempre visíveis */}
                 <ReviewsList reviews={dish.reviews} userId={userId} />
-                <CommentsList comments={dish.comments} userId={userId} />
+
+                {/* comentários (sem estrela) — ocultos até clicar */}
+                {dish.comments.length > 0 && (
+                  <>
+                    <button className="toggle-cmt" onClick={() => setShowComments((v) => !v)}>
+                      {showComments
+                        ? "ocultar comentários"
+                        : `ver ${dish.comments.length} comentário${dish.comments.length > 1 ? "s" : ""}`}
+                    </button>
+                    {showComments && <CommentsList comments={dish.comments} userId={userId} />}
+                  </>
+                )}
               </div>
             ) : (
               <div className="help" style={{ fontSize: 15 }}>

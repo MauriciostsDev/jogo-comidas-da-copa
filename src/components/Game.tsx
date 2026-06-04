@@ -47,6 +47,14 @@ type Scene =
   | "gallery"
   | "social";
 
+// Marca uma animação como "já vista" (por rodada), pra não repetir ao recarregar.
+function alreadyShown(key: string): boolean {
+  try { return !!localStorage.getItem(key); } catch { return false; }
+}
+function markShown(key: string) {
+  try { localStorage.setItem(key, "1"); } catch { /* ignora */ }
+}
+
 // Countries one partner cooked but the other hasn't (for exclusion toggle in lobby)
 type ExcludableCountry = {
   id: number;
@@ -81,11 +89,15 @@ export default function Game({ userId, userName }: Props) {
   const [swapConfirm, setSwapConfirm] = useState(false);
   const lastMatchId = useRef<string | null>(null);
 
-  // Sorteio do prato — animação cassino + contagem 3·2·1
+  // Sorteio do prato — roleta cassino (sem 3·2·1; ele vai pra fase de escrever)
   const [pickPhase, setPickPhase] = useState<"spin" | "reveal">("reveal");
   const [pickReel, setPickReel] = useState("");
-  const [pickCount, setPickCount] = useState(3);
   const pickAnimatedFor = useRef<string | null>(null);
+
+  // Contagem 3·2·1 ANTES dos 7 minutos (início da fase de escrever)
+  const [writeIntro, setWriteIntro] = useState(false);
+  const [writeCount, setWriteCount] = useState(3);
+  const writeIntroFor = useRef<string | null>(null);
 
   // Aba manual (galeria/social) — null = segue o fluxo do jogo
   const [manualScene, setManualScene] = useState<"gallery" | "social" | null>(null);
@@ -356,7 +368,7 @@ export default function Game({ userId, userName }: Props) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drawPhase, country?.id]);
 
-  // ── Sorteio do prato: roleta cassino entre os dois pratos + 3·2·1 ──
+  // ── Sorteio do prato: roleta cassino entre os dois pratos (sem 3·2·1) ──
   useEffect(() => {
     const inPick = match?.status === "cooking" && !pickConfirmed && !!chosenFood;
     if (!inPick) return;
@@ -367,23 +379,46 @@ export default function Game({ userId, userName }: Props) {
     if (!otherFood) { setPickPhase("reveal"); return; }
 
     pickAnimatedFor.current = match!.id;
+
+    // Já rodou a roleta dessa rodada (ex.: recarregou a página) → não repete.
+    const key = `cc-pick-${match!.id}`;
+    if (alreadyShown(key)) { setPickPhase("reveal"); return; }
+    markShown(key);
+
     const names = [chosenFood!.text, otherFood.text];
     setPickPhase("spin");
-    setPickCount(3);
     setPickReel(names[0]);
     let i = 0;
     const flip = setInterval(() => { i += 1; setPickReel(names[i % 2]); }, 110);
-    const t2 = setTimeout(() => setPickCount(2), 1000);
-    const t1 = setTimeout(() => setPickCount(1), 2000);
     const done = setTimeout(() => {
       clearInterval(flip);
       setPickReel(chosenFood!.text);
       setPickPhase("reveal");
       fireConfetti(60);
     }, 3000);
-    return () => { clearInterval(flip); clearTimeout(t2); clearTimeout(t1); clearTimeout(done); };
+    return () => { clearInterval(flip); clearTimeout(done); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [match?.id, match?.status, pickConfirmed, chosenFood?.id, otherFood?.id]);
+
+  // ── Contagem 3·2·1 ANTES dos 7 min (ao entrar na fase de escrever) ──
+  useEffect(() => {
+    const inWrite = match?.status === "writing" && drawPhase === "idle";
+    if (!inWrite) return;
+    if (writeIntroFor.current === match!.id) return;
+    writeIntroFor.current = match!.id;
+
+    // Já mostrou a contagem dessa rodada (ex.: recarregou) → vai direto.
+    const key = `cc-write-${match!.id}`;
+    if (alreadyShown(key)) { setWriteIntro(false); return; }
+    markShown(key);
+
+    setWriteIntro(true);
+    setWriteCount(3);
+    const t2 = setTimeout(() => setWriteCount(2), 1000);
+    const t1 = setTimeout(() => setWriteCount(1), 2000);
+    const go = setTimeout(() => setWriteIntro(false), 3000);
+    return () => { clearTimeout(t2); clearTimeout(t1); clearTimeout(go); };
+  }, [match?.id, match?.status, drawPhase]);
 
   // ── Actions ───────────────────────────────────────────────────
   async function handleDraw() {
@@ -593,8 +628,19 @@ export default function Game({ userId, userName }: Props) {
           </section>
         )}
 
+        {/* ── 4a. Contagem 3·2·1 antes dos 7 minutos ─────────── */}
+        {scene === "write" && country && writeIntro && (
+          <section className="screen active center">
+            <h2 className="neon-yellow">PREPAREM-SE! 🍳</h2>
+            <p className="help">
+              7 minutos pra escrever o prato típico de {country.flag} {country.name_pt}…
+            </p>
+            <div className="pick-count" key={writeCount}>{writeCount}</div>
+          </section>
+        )}
+
         {/* ── 4. ESCREVER O PRATO ────────────────────────────── */}
-        {scene === "write" && country && (
+        {scene === "write" && country && !writeIntro && (
           <section className="screen active">
             <div className="row between wrap">
               <h2 className="neon-yellow">✍️ ESCREVA O PRATO</h2>
@@ -674,7 +720,6 @@ export default function Game({ userId, userName }: Props) {
             <div className="pick-slot">
               <div className="pick-slot-name" key={pickReel}>{pickReel || "…"}</div>
             </div>
-            <div className="pick-count" key={pickCount}>{pickCount}</div>
           </section>
         )}
 
