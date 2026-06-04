@@ -18,6 +18,7 @@ export type Match = {
   caption: string | null;
   partner_id: string | null;
   published: boolean;
+  solo_user_id: string | null;
   created_at: string;
 };
 

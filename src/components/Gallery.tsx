@@ -332,26 +332,6 @@ export function MyGallery({ supabase, userId }: Props) {
 
   return (
     <>
-      <div className="card tight">
-        <div className="card-title">🤝 MINHAS DUPLAS ({friends.length})</div>
-        {friends.length ? (
-          friends.map((f) => (
-            <div
-              key={f.user_id}
-              className="row between"
-              style={{ padding: "8px 0", borderTop: "2px solid var(--line)" }}
-            >
-              <span style={{ fontFamily: "var(--display)", fontSize: 11 }}>👤 {f.display_name}</span>
-              <span className="kbd">{f.invite_code}</span>
-            </div>
-          ))
-        ) : (
-          <p className="help" style={{ fontSize: 15, marginTop: 6 }}>
-            Você ainda não tem duplas. Adicione pelo código no lobby (🤝) pra marcar nos pratos e jogar junto.
-          </p>
-        )}
-      </div>
-
       <div className="stats-row">
         <div className="stat">
           <div className="num">{mine.length}</div>

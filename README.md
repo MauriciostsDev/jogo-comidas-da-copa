@@ -26,6 +26,7 @@ celulares e com **login por email e senha**.
    4. [`supabase/schema_v4_gallery.sql`](supabase/schema_v4_gallery.sql) — edição da galeria (legenda, marcar a dupla, exportar pro feed). **Depende do v2.**
    5. [`supabase/schema_v5_comments.sql`](supabase/schema_v5_comments.sql) — comentários do feed + avaliação (estrelas) restrita a quem participou.
    6. [`supabase/schema_v6_presentation.sql`](supabase/schema_v6_presentation.sql) — nota de apresentação (0–10) que qualquer um do Social pode dar.
+   7. [`supabase/schema_v7_solo.sql`](supabase/schema_v7_solo.sql) — coluna `solo_user_id` em matches + função `draw_country_solo` para o modo solo.
 3. Vá em **Project Settings → API** e copie:
    - **Project URL** → vira `NEXT_PUBLIC_SUPABASE_URL`
    - **anon public** key → vira `NEXT_PUBLIC_SUPABASE_ANON_KEY`
@@ -84,6 +85,7 @@ Pronto! 🎉
 | [`supabase/schema_v4_gallery.sql`](supabase/schema_v4_gallery.sql) | Galeria editável: legenda, marcar dupla, exportar pro feed |
 | [`supabase/schema_v5_comments.sql`](supabase/schema_v5_comments.sql) | Comentários do feed + avaliação restrita a participantes |
 | [`supabase/schema_v6_presentation.sql`](supabase/schema_v6_presentation.sql) | Nota de apresentação (0–10) aberta a todo o Social |
+| [`supabase/schema_v7_solo.sql`](supabase/schema_v7_solo.sql) | Modo Solo: `solo_user_id` em matches + função `draw_country_solo` |
 | [`src/lib/supabase/`](src/lib/supabase/) | Clientes Supabase (navegador, servidor, middleware) |
 | [`src/app/login/`](src/app/login/) | Tela e ações de login/cadastro |
 | [`src/app/actions.ts`](src/app/actions.ts) | Ações do jogo (sortear, prato, foto, salas) |

@@ -160,6 +160,19 @@ export default function Game({ userId, userName }: Props) {
       m = activeGlobal ?? null;
     }
 
+    // Fallback solo — antes de submeter o prato não há foods; busca pelo solo_user_id
+    if (!m && isSolo) {
+      const { data: soloMatch } = await supabase
+        .from("matches")
+        .select("*")
+        .eq("solo_user_id", userId)
+        .neq("status", "done")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      m = soloMatch ?? null;
+    }
+
     setMatch(m ?? null);
 
     if (!m) { setCountry(null); setFoods([]); setChosenFood(null); return; }
